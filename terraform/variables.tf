@@ -20,8 +20,14 @@ variable "atlas_region" {
   default     = "WESTERN_EUROPE"
 }
 
-variable "image" {
+variable "orders_api_image" {
   description = "The orders-api image. scripts/deploy.sh sets it to the digest it just pushed ; the default is Google's public placeholder, so the very first apply has something to run."
+  type        = string
+  default     = "us-docker.pkg.dev/cloudrun/container/hello"
+}
+
+variable "pricing_api_image" {
+  description = "The pricing-api image, same as orders_api_image."
   type        = string
   default     = "us-docker.pkg.dev/cloudrun/container/hello"
 }

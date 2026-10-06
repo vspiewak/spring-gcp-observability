@@ -1,6 +1,7 @@
 package com.vspiewak.orders.controllers;
 
 import com.vspiewak.orders.domain.Order;
+import com.vspiewak.orders.domain.PricedOrder;
 import com.vspiewak.orders.services.OrderService;
 import org.springframework.http.HttpStatus;
 import org.springframework.web.bind.annotation.GetMapping;
@@ -31,7 +32,7 @@ public class OrderController {
   }
 
   @GetMapping("/{orderId}")
-  public Order getOrder(@PathVariable String orderId) {
+  public PricedOrder getOrder(@PathVariable String orderId) {
     return service
         .findByOrderId(orderId)
         .orElseThrow(() -> new ResponseStatusException(HttpStatus.NOT_FOUND));

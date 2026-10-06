@@ -2,11 +2,11 @@
 
 [![build](https://github.com/vspiewak/spring-gcp-observability/actions/workflows/build.yml/badge.svg)](https://github.com/vspiewak/spring-gcp-observability/actions/workflows/build.yml) ![Java](https://img.shields.io/badge/Java-25-orange) ![Spring Boot](https://img.shields.io/badge/Spring%20Boot-4.1-green)
 
-**Observability as a dependency : a Spring Boot service on Cloud Run lands its logs and traces in Google Cloud, correlated — without a line of Google Cloud code.**
+**Observability as a dependency : two Spring Boot services on Cloud Run, one request, one trace across both — every log line filed under it, without a line of Google Cloud code.**
 
 [`spring-paved-road`](https://github.com/vspiewak/spring-paved-road) is the broad picture : the parent, BOM
 and starters a Spring Boot fleet inherits. This repo zooms on one capability and takes it all the way
-to real cloud infrastructure : one starter, one service, Terraform, Cloud Run, Cloud Logging, Cloud Trace.
+to real cloud infrastructure : one starter, two services, Terraform, Cloud Run, Cloud Logging, Cloud Trace.
 The work implementation lives in that paved road ; this is a minimal public reproduction of the pattern.
 
 ## 💡 The idea
@@ -15,25 +15,26 @@ Three layers, and each knows only what it must :
 
 | Layer | Knows |
 |---|---|
-| 🧾 [`orders-api`](./orders-api) — the service | its name, its MongoDB, `@Observed` — **no Google Cloud code, two settings in `application.yaml`** |
+| 🧾 [`orders-api`](./orders-api) — a service | its name, its MongoDB, where pricing-api is, `@Observed` — **no Google Cloud code** |
+| 🏷️ [`pricing-api`](./pricing-api) — another one | its name, its port, `@Observed` — **no Google Cloud code** |
 | 🔭 [`observability-starter`](./observability-starter) — the platform | how traces and logs reach Google : endpoint, token, project attribute, log field names, the sampler |
-| ☁️ [`terraform`](./terraform) — the infrastructure | which project, JSON logs on, the database secret, who may write traces |
+| ☁️ [`terraform`](./terraform) — the infrastructure | which project, JSON logs on, the database secret, who may write traces, where pricing-api runs |
 
 ```text
-curl ──────────────► Cloud Run front end ──traceparent──► orders-api ──────────► MongoDB Atlas
-                        │ request log + span                 │ @Observed              (driver spans)
-                        │                                    │
-                        ▼                                    ├─ JSON lines on stdout ──► Cloud Logging
-                  Cloud Logging ◄────── same trace id ───────┤
-                                                             └─ OTLP ──► Telemetry API ──► Cloud Trace
+curl ─► Cloud Run ─► orders-api ─────────────────────────► Cloud Run ─► pricing-api
+        front end    │ @Observed                traceparent  front end    │ @Observed
+                     ├─ MongoDB Atlas (driver spans)                      │
+                     │                                                    │
+                     ├─ JSON lines on stdout ─► Cloud Logging ◄───────────┤ JSON lines on stdout
+                     └─ OTLP ─► Telemetry API ─► Cloud Trace ◄────────────┘ OTLP
 ```
 
-One request, one trace — Cloud Run's front-end span, then the service's, down to MongoDB — and every
-log line of that request filed under the same trace.
+One request, one trace : Cloud Run's front-end span, orders-api's, MongoDB's, the call out, Cloud Run's
+again, pricing-api's — and every log line of both services filed under that same trace.
 
-## 🧾 What the service contains
+## 🧾 What a service contains
 
-One dependency :
+One dependency, in both :
 
 ```xml
 <dependency>
@@ -42,7 +43,7 @@ One dependency :
 </dependency>
 ```
 
-And this, as its whole configuration :
+And this, as orders-api's whole configuration — pricing-api's is its name and its port :
 
 ```yaml
 spring:
@@ -50,11 +51,14 @@ spring:
     name: "orders-api"
   mongodb:
     database: "orders"
+pricing:
+  url: "http://localhost:8081"
 ```
 
-The rest is an ordinary controller → `@Observed` service → repository. The deployment adds three
-environment variables : the project (`SPRING_CLOUD_GCP_PROJECT_ID`), JSON logs
-(`LOGGING_STRUCTURED_FORMAT_CONSOLE=logstash`) and the MongoDB URI, from Secret Manager.
+The rest is an ordinary controller → `@Observed` service → repository, and a `RestClient` built from
+Boot's `RestClient.Builder` to call pricing-api. The deployment adds environment variables : the project
+(`SPRING_CLOUD_GCP_PROJECT_ID`), JSON logs (`LOGGING_STRUCTURED_FORMAT_CONSOLE=logstash`), and for
+orders-api the MongoDB URI, from Secret Manager, and pricing-api's URL (`PRICING_URL`).
 
 ## 🔭 What the starter does
 
@@ -106,6 +110,24 @@ A Google token is only ever sent to a `googleapis.com` host : point
 Proven by [`CloudTraceAutoConfigurationTest`](./observability-starter/src/test/java/com/vspiewak/observability/tracing/CloudTraceAutoConfigurationTest.java)
 and [`GoogleCloudOtlpAuthCustomizerTest`](./observability-starter/src/test/java/com/vspiewak/observability/tracing/GoogleCloudOtlpAuthCustomizerTest.java).
 
+### 🔗 One trace across services — nothing to write
+
+The trace crosses the network on its own : Boot instruments the `RestClient.Builder` it hands out, so
+orders-api's call gets a client span and carries a W3C `traceparent` ; pricing-api's Cloud Run front end
+and Boot continue it. The starter's only part is the sampler — orders-api decides, then says *sampled*
+downstream, and Cloud Run in front of pricing-api honours it. A burst of six requests, 2026-10-06 :
+
+| orders-api requests | Cloud Run sampled them | orders-api spans | pricing-api spans |
+|---|---|---|---|
+| 2 | yes | 5 each | 2 each |
+| 4 | **no** | **5 each** | **2 each** |
+
+Proven by [`TracingIT`](./orders-api/src/test/java/com/vspiewak/orders/platform/TracingIT.java) —
+pricing-api, stood in by a local HTTP server, is called with the request's trace id and the client
+span as parent — and by pricing-api's own
+[`TracingIT`](./pricing-api/src/test/java/com/vspiewak/pricing/platform/TracingIT.java) : a request
+carrying a caller's `traceparent` lands in the caller's trace.
+
 ### 🧾 Logs Cloud Logging reads, tied to their trace
 
 Boot 4 writes structured JSON on its own (`ecs`, `gelf`, `logstash`) — but no Google format. The
@@ -145,10 +167,12 @@ You need **Java 25** — `.sdkmanrc` pins Temurin 25.0.4 — and Docker for the 
 sdk env install
 ./mvnw verify                                      # unit + slice + *IT against a real MongoDB, no Google Cloud
 ./mvnw install -DskipTests                         # once : -pl resolves the starter from ~/.m2
-./mvnw -pl orders-api spring-boot:test-run         # the service, on a MongoDB container, at localhost:8080
+./mvnw -pl pricing-api spring-boot:run             # pricing-api, at localhost:8081
+./mvnw -pl orders-api spring-boot:test-run         # orders-api, on a MongoDB container, at localhost:8080
 ```
 
-No project, nothing leaves the laptop. Give it one — `SPRING_CLOUD_GCP_PROJECT_ID=<project>`, after
+Both log the same trace id for a request, in their plain console lines. No project, nothing leaves the
+laptop. Give it one — `SPRING_CLOUD_GCP_PROJECT_ID=<project>`, after
 `gcloud auth application-default login` and `gcloud auth application-default set-quota-project <project>`
 — and the same run sends its traces to Cloud Trace.
 
@@ -171,37 +195,45 @@ export TF_VAR_atlas_org_id=<your Atlas organization id>
 export MONGODB_ATLAS_CLIENT_ID=<service account client id>
 export MONGODB_ATLAS_CLIENT_SECRET=<service account secret>
 
-./scripts/deploy.sh      # terraform apply, then the image (Jib, no Docker), then Cloud Run on it
+./scripts/deploy.sh      # terraform apply, then both images (Jib, no Docker), then Cloud Run on them
 ./scripts/demo.sh        # one request, then its logs and its trace
 ```
 
 `demo.sh` picks the trace id itself, through `traceparent`, then lists every log line of that trace :
 
 ```text
-TIMESTAMP  SEVERITY  MESSAGE                 REQUEST_URL                                         SPAN_ID
-07:28:42   INFO                              https://orders-api-….run.app/orders/v1/orders/demo-…  b30b0b76ee612b8f
-07:28:42   INFO      found order demo-17395                                                        8a40a801db4ab014
+TIMESTAMP  SERVICE_NAME  SEVERITY  MESSAGE                                     REQUEST_URL
+09:21:19   orders-api    INFO                                                  https://orders-api-….run.app/orders/v1/orders/demo-634b4e2b
+09:21:20   pricing-api   INFO                                                  https://pricing-api-….run.app/prices/v1/quotes?amount=42
+09:21:20   pricing-api   INFO      quoted 42 at 50.40
+09:21:20   orders-api    INFO      found order demo-634b4e2b, priced at 50.40
 ```
 
-Cloud Run's request log and the service's own line, one trace — and in Cloud Trace :
+Both services' Cloud Run request logs and their own lines, one trace — and in Cloud Trace, nine spans :
 
 ```text
-/orders/v1/orders/demo-17395              ← Cloud Run's front end
-└─ http get /orders/v1/orders/{orderId}   ← orders-api
-   └─ OrderService#findByOrderId          ← @Observed
-      └─ find orders.orders               ← the MongoDB driver
-         └─ find
+/orders/v1/orders/demo-634b4e2b              ← Cloud Run's front end
+└─ http get /orders/v1/orders/{orderId}      ← orders-api
+   └─ OrderService#findByOrderId             ← @Observed
+      ├─ find orders.orders                  ← the MongoDB driver
+      │  └─ find
+      └─ http get                            ← the call to pricing-api
+         └─ /prices/v1/quotes                ← Cloud Run's front end, again
+            └─ http get /prices/v1/quotes    ← pricing-api
+               └─ PricingService#quote       ← @Observed
 ```
 
-What Terraform builds : the APIs, an Artifact Registry repository, a service account allowed to write
-traces and to read one secret, the Atlas project with a free M0 cluster and its user, the connection
-string in Secret Manager, and the Cloud Run service. Run `scripts/deploy.sh` again after any change —
-a bare `terraform apply` would put Cloud Run back on the placeholder image.
+What Terraform builds : the APIs, an Artifact Registry repository, one service account per service —
+both may write traces, only orders-api may read its secret — the Atlas project with a free M0 cluster
+and its user, the connection string in Secret Manager, and the two Cloud Run services, orders-api told
+where pricing-api runs. Run `scripts/deploy.sh` again after any change — a bare `terraform apply` would
+put Cloud Run back on the placeholder images.
 
 > ⚠️ **Demo shortcut** : Cloud Run has no fixed outbound IP and the free M0 tier has no private
 > networking, so the Atlas cluster accepts connections from anywhere, behind a 32-character random
 > password. A real deployment uses a dedicated cluster with a private endpoint, or a static egress IP
-> through Cloud NAT. The Terraform state holds that password : keep it local.
+> through Cloud NAT. The Terraform state holds that password : keep it local. pricing-api is public
+> too : calling it with an identity token would be Cloud Run plumbing, not observability.
 
 ### 🧹 Tear it down
 
@@ -209,8 +241,8 @@ a bare `terraform apply` would put Cloud Run back on the placeholder image.
 terraform -chdir=terraform destroy
 ```
 
-It removes everything the demo built — the Cloud Run service, the registry and its images, the secret,
-the service account and its role, the Atlas project and its cluster — in about a minute, most of it
+It removes everything the demo built — the Cloud Run services, the registry and its images, the secret,
+the service accounts and their roles, the Atlas project and its cluster — in about a minute, most of it
 waiting on Atlas. What stays : the APIs it enabled, and the traces and logs already written, until
 their retention runs out (in the `_Trace` observability bucket and the project's log buckets).
 
@@ -234,8 +266,12 @@ Measured while building this, on Spring Boot 4.1, Cloud Run and the Telemetry AP
   `_Trace`, created about two minutes after the project's first span — in the `us` location by default.
   Until it exists, reading a trace answers `404 _Trace bucket not found`. Create it yourself first if the
   location matters to you.
-* **The very first Cloud Run deployment into a fresh project failed** with an *internal error* and
-  succeeded on retry — `deploy.sh` retries once.
+* **The very first Cloud Run deployment into a fresh project failed** with an *internal error*, and
+  succeeded when run again — `deploy.sh` says so when an apply fails.
+* **Spans land about a minute after the request.** Batched in the service for up to five seconds, then
+  ingested : a trace read right away can show pricing-api's spans and not yet orders-api's.
+* **Trace flags are `03`, not `01`.** OpenTelemetry Java sets W3C Trace Context Level 2's *random trace
+  id* bit next to *sampled* ; Cloud Run's front end takes it as sampled.
 * **Spring Cloud GCP is used for credentials only.** Its trace starter is built on Brave and Zipkin, not
   on the OpenTelemetry bridge Boot exports from.
 * **The free M0 tier** has no Workload Identity Federation (M10 and up), no peering, no private
@@ -247,4 +283,4 @@ Measured while building this, on Spring Boot 4.1, Cloud Run and the Telemetry AP
 |---|---|---|
 | Platform | Java 21 · Spring Boot 3.5 | Java 25 · Spring Boot 4.1 |
 | Tracing API | Micrometer Observation over OpenTelemetry, `@Observed` | the same |
-| Shape | a capability of the fleet's shared libraries | one starter, one service — yours to fork |
+| Shape | a capability of the fleet's shared libraries | one starter, two services — yours to fork |

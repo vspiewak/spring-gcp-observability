@@ -4,6 +4,7 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 
 import com.vspiewak.orders.Containers;
+import com.vspiewak.orders.PricingStub;
 import com.vspiewak.orders.domain.Order;
 import com.vspiewak.orders.repositories.OrderRepository;
 import io.opentelemetry.api.common.AttributeKey;
@@ -15,6 +16,7 @@ import io.opentelemetry.sdk.trace.export.SimpleSpanProcessor;
 import java.time.Duration;
 import java.util.List;
 import java.util.Optional;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.BeforeEach;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -25,14 +27,16 @@ import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.context.annotation.Bean;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
 /**
  * The tracing the service inherits from {@code observability-starter}, end to end : one request is
- * one trace from the HTTP server span down to the MongoDB driver, a trace Cloud Run started is
- * continued even when Cloud Run chose not to sample it, and every span names its Google Cloud
- * project. Spans are captured in memory, exactly as the OTLP exporter would hand them to Google —
- * which is switched off here, so nothing leaves the build.
+ * one trace from the HTTP server span down to the MongoDB driver and out to pricing-api, a trace
+ * Cloud Run started is continued even when Cloud Run chose not to sample it, and every span names
+ * its Google Cloud project. Spans are captured in memory, exactly as the OTLP exporter would hand
+ * them to Google — which is switched off here, so nothing leaves the build.
  */
 @SpringBootTest(
     webEnvironment = WebEnvironment.RANDOM_PORT,
@@ -52,6 +56,18 @@ class TracingIT {
 
   private static final String CLOUD_RUN_SPAN_ID = "00f067aa0ba902b7";
 
+  private static final PricingStub pricing = PricingStub.start();
+
+  @DynamicPropertySource
+  static void pricingApi(DynamicPropertyRegistry registry) {
+    registry.add("pricing.url", pricing::url);
+  }
+
+  @AfterAll
+  static void stopPricingApi() {
+    pricing.close();
+  }
+
   @Autowired private RestTestClient client;
 
   @Autowired private OrderRepository repository;
@@ -66,7 +82,7 @@ class TracingIT {
   }
 
   @Test
-  void shouldTraceARequestFromHttpDownToMongo() {
+  void shouldTraceARequestFromHttpDownToMongoAndOutToPricing() {
     // when
     client.get().uri("/orders/v1/orders/42").exchange().expectStatus().isOk();
 
@@ -74,12 +90,28 @@ class TracingIT {
     var server = awaitServerSpan();
     var service = onlyChild(server, "OrderService#findByOrderId");
     assertThat(childrenOf(service))
-        .isNotEmpty()
-        .allSatisfy(
-            span -> {
-              assertThat(span.getKind()).isEqualTo(SpanKind.CLIENT);
-              assertThat(span.getName()).startsWith("find ");
-            });
+        .allSatisfy(span -> assertThat(span.getKind()).isEqualTo(SpanKind.CLIENT))
+        .extracting(SpanData::getName)
+        .contains("find orders.orders", "http get");
+  }
+
+  @Test
+  void shouldCarryTheTraceToPricingApi() {
+    // when
+    client.get().uri("/orders/v1/orders/42").exchange().expectStatus().isOk();
+
+    // then : pricing-api was called inside this trace, as a child of the outgoing call's span
+    var server = awaitServerSpan();
+    var call =
+        childrenOf(onlyChild(server, "OrderService#findByOrderId")).stream()
+            .filter(span -> span.getName().equals("http get"))
+            .findFirst()
+            .orElseThrow();
+    // traceparent : version - trace id - parent span id - flags (0x01 sampled, 0x02 random id)
+    var traceparent = pricing.traceparent().split("-");
+    assertThat(traceparent[1]).isEqualTo(server.getTraceId());
+    assertThat(traceparent[2]).isEqualTo(call.getSpanId());
+    assertThat(Integer.parseInt(traceparent[3], 16) & 0x01).as("sampled").isEqualTo(1);
   }
 
   @Test

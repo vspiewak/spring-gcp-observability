@@ -4,3 +4,5 @@ spring:
     name: "orders-api"
   mongodb:
     database: "orders"
+pricing:
+  url: "http://localhost:8081"

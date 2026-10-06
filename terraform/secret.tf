@@ -18,5 +18,5 @@ resource "google_secret_manager_secret_version" "mongodb_uri" {
 resource "google_secret_manager_secret_iam_member" "orders_api" {
   secret_id = google_secret_manager_secret.mongodb_uri.id
   role      = "roles/secretmanager.secretAccessor"
-  member    = google_service_account.orders_api.member
+  member    = google_service_account.service["orders-api"].member
 }

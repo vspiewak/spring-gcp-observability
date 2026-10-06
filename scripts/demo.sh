@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 #
-# One request to orders-api, then where to find it : its log lines in Cloud Logging, its trace in
-# Cloud Trace. The script picks the trace id itself, through the W3C traceparent header.
+# One request to orders-api — which calls pricing-api — then where to find it : the log lines of both
+# services in Cloud Logging, one trace in Cloud Trace. The script picks the trace id itself, through
+# the W3C traceparent header.
 
 set -euo pipefail
 cd "$(dirname "$0")/.."
@@ -9,7 +10,7 @@ cd "$(dirname "$0")/.."
 url=$(terraform -chdir=terraform output -raw service_url)
 project=$(terraform -chdir=terraform output -raw project_id)
 
-order_id="demo-$RANDOM"
+order_id="demo-$(openssl rand -hex 4)"
 curl -fsS -X POST "$url/orders/v1/orders" \
   -H 'Content-Type: application/json' -d "{\"orderId\": \"$order_id\", \"amount\": 42}" >/dev/null
 
@@ -30,8 +31,8 @@ for _ in $(seq 1 20); do
 done
 
 gcloud logging read "$filter" --project "$project" --freshness 10m --order asc \
-  --format 'table(timestamp.date("%H:%M:%S"), severity, jsonPayload.message, httpRequest.requestUrl, spanId)'
+  --format 'table(timestamp.date("%H:%M:%S"), resource.labels.service_name, severity, jsonPayload.message, httpRequest.requestUrl, spanId)'
 
 echo
 echo "Logs  : https://console.cloud.google.com/logs/query;query=$(printf %s "$filter" | jq -sRr @uri)?project=$project"
-echo "Trace : https://console.cloud.google.com/traces/list?project=$project&tid=$trace_id"
+echo "Trace : https://console.cloud.google.com/traces/explorer;traceId=$trace_id;duration=P1D?project=$project"

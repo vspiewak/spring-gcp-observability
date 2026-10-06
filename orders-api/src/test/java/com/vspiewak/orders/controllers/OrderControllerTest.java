@@ -4,7 +4,9 @@ import static org.assertj.core.api.Assertions.assertThat;
 import static org.mockito.BDDMockito.given;
 
 import com.vspiewak.orders.domain.Order;
+import com.vspiewak.orders.domain.PricedOrder;
 import com.vspiewak.orders.services.OrderService;
+import java.math.BigDecimal;
 import java.util.Optional;
 import org.junit.jupiter.api.Test;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -43,15 +45,19 @@ class OrderControllerTest {
   }
 
   @Test
-  void shouldReturnOneOrderAsJson() {
+  void shouldReturnOnePricedOrderAsJson() {
     // given
-    given(service.findByOrderId("42")).willReturn(Optional.of(new Order("id-1", "42", 7)));
+    given(service.findByOrderId("42"))
+        .willReturn(Optional.of(new PricedOrder("42", 7, new BigDecimal("8.40"))));
 
     // when
     var response = mvc.get().uri("/orders/v1/orders/42");
 
     // then
-    assertThat(response).hasStatusOk().bodyJson().extractingPath("$.amount").isEqualTo(7);
+    assertThat(response)
+        .hasStatusOk()
+        .bodyJson()
+        .isLenientlyEqualTo("{\"orderId\": \"42\", \"amount\": 7, \"total\": 8.40}");
   }
 
   @Test

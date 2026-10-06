@@ -17,6 +17,7 @@
    <modules>
       <module>observability-starter</module>
       <module>orders-api</module>
+      <module>pricing-api</module>
    </modules>
 
    <properties>
@@ -28,8 +29,10 @@
       <spotless-maven-plugin.version>3.9.0</spotless-maven-plugin.version>
       <google-java-format.version>1.36.1</google-java-format.version>
 
-      <!-- only the deployable service switches jib on -->
+      <!-- only the deployable services switch jib on ; scripts/deploy.sh sets the repository -->
       <jib.skip>true</jib.skip>
+      <image.repository>local</image.repository>
+      <image.tag>latest</image.tag>
    </properties>
 
    <dependencyManagement>
@@ -72,6 +75,9 @@
                   <from>
                      <image>eclipse-temurin:25-jre</image>
                   </from>
+                  <to>
+                     <image>${image.repository}/${project.artifactId}:${image.tag}</image>
+                  </to>
                   <container>
                      <user>1001</user>
                   </container>

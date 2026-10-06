@@ -4,8 +4,10 @@ import static org.assertj.core.api.Assertions.assertThat;
 
 import com.jayway.jsonpath.JsonPath;
 import com.vspiewak.orders.Containers;
+import com.vspiewak.orders.PricingStub;
 import com.vspiewak.orders.domain.Order;
 import com.vspiewak.orders.repositories.OrderRepository;
+import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
 import org.springframework.beans.factory.annotation.Autowired;
@@ -15,6 +17,8 @@ import org.springframework.boot.test.context.SpringBootTest.WebEnvironment;
 import org.springframework.boot.test.system.CapturedOutput;
 import org.springframework.boot.test.system.OutputCaptureExtension;
 import org.springframework.context.annotation.Import;
+import org.springframework.test.context.DynamicPropertyRegistry;
+import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
 /**
@@ -35,6 +39,18 @@ import org.springframework.test.web.servlet.client.RestTestClient;
 @Import(Containers.class)
 @ExtendWith(OutputCaptureExtension.class)
 class CloudLoggingIT {
+
+  private static final PricingStub pricing = PricingStub.start();
+
+  @DynamicPropertySource
+  static void pricingApi(DynamicPropertyRegistry registry) {
+    registry.add("pricing.url", pricing::url);
+  }
+
+  @AfterAll
+  static void stopPricingApi() {
+    pricing.close();
+  }
 
   @Autowired private RestTestClient client;
 

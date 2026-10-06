@@ -4,7 +4,8 @@ import org.springframework.boot.SpringApplication;
 
 /**
  * The local dev loop : {@code ./mvnw -pl orders-api spring-boot:test-run} boots the service against
- * a MongoDB container — no Google Cloud project, so nothing leaves the laptop.
+ * a MongoDB container, calling pricing-api on {@code localhost:8081} (start it first) — no Google
+ * Cloud project, so nothing leaves the laptop.
  */
 public class RunWithTestcontainers {
 
