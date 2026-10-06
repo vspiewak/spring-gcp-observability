@@ -37,6 +37,8 @@ class ObservabilityDefaultsEnvironmentPostProcessorTest {
     assertThat(environment.getProperty("management.tracing.sampling.probability")).isEqualTo("1.0");
     assertThat(environment.getProperty("management.observations.annotations.enabled"))
         .isEqualTo("true");
+    assertThat(environment.getProperty("management.otlp.metrics.export.enabled"))
+        .isEqualTo("false");
   }
 
   @Test

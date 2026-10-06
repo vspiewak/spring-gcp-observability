@@ -11,20 +11,12 @@
    <artifactId>observability-starter</artifactId>
 
    <dependencies>
+      <!-- Spring Boot's own OpenTelemetry starter : Micrometer over the OpenTelemetry SDK, OTLP export -->
       <dependency>
          <groupId>org.springframework.boot</groupId>
-         <artifactId>spring-boot-starter</artifactId>
+         <artifactId>spring-boot-starter-opentelemetry</artifactId>
       </dependency>
-
-      <!-- tracing : Micrometer over the OpenTelemetry SDK, exported over plain OTLP -->
-      <dependency>
-         <groupId>org.springframework.boot</groupId>
-         <artifactId>spring-boot-micrometer-tracing-opentelemetry</artifactId>
-      </dependency>
-      <dependency>
-         <groupId>io.micrometer</groupId>
-         <artifactId>micrometer-tracing-bridge-otel</artifactId>
-      </dependency>
+      <!-- brought at runtime by the starter ; declared because the token bean builds against it -->
       <dependency>
          <groupId>io.opentelemetry</groupId>
          <artifactId>opentelemetry-exporter-otlp</artifactId>

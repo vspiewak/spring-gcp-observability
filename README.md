@@ -64,7 +64,8 @@ Manager) and pricing-api's URL.
 
 ## 🔭 What the starter does
 
-Four small classes and two YAML files. The defaults —
+Built on Spring Boot's own `spring-boot-starter-opentelemetry` — Micrometer over the OpenTelemetry SDK,
+OTLP export — the starter adds four small classes and two YAML files. The defaults —
 [`observability-defaults.yaml`](./observability-starter/src/main/resources/observability-defaults.yaml)
 always, [`observability-gcp.yaml`](./observability-starter/src/main/resources/observability-gcp.yaml)
 once `GOOGLE_CLOUD_PROJECT` is set — are loaded by an `EnvironmentPostProcessor` *below* the service's
@@ -283,6 +284,10 @@ Measured while building this, on Spring Boot 4.1, Cloud Run and the Telemetry AP
   Run's front end waiting for an instance to start.
 
   ![A cold-start trace : the call to pricing-api lasts 13.3 s, pricing-api's own server span 200 ms](./docs/images/trace-cold-start.png)
+* **Boot's OpenTelemetry starter exports metrics too.** It ships an OTLP metrics registry, on by
+  default, aimed at `http://localhost:4318/v1/metrics` : left on, every service logs `Failed to publish
+  metrics to OTLP receiver` once a minute. The defaults switch it off — this demo is about traces and
+  logs.
 * **Trace storage provisions itself, in `us`.** Spans are stored in an observability bucket named
   `_Trace`, created about two minutes after the project's first span — in the `us` location by default.
   Until it exists, reading a trace answers `404 _Trace bucket not found`. Create it yourself first if the

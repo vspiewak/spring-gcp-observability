@@ -11,3 +11,8 @@ management:
   observations:
     annotations:
       enabled: true
+  otlp:
+    metrics:
+      export:
+        # the OpenTelemetry starter ships an OTLP metrics registry too : this demo is about traces and logs
+        enabled: false
