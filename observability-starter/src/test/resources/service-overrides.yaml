@@ -1,0 +1,8 @@
+---
+management:
+  opentelemetry:
+    tracing:
+      sampler: "parent-based-trace-id-ratio"
+  tracing:
+    sampling:
+      probability: 0.25

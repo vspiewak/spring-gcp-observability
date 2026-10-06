@@ -1,0 +1,120 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<project xmlns="http://maven.apache.org/POM/4.0.0" xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance" xsi:schemaLocation="http://maven.apache.org/POM/4.0.0 https://maven.apache.org/xsd/maven-4.0.0.xsd">
+   <modelVersion>4.0.0</modelVersion>
+
+   <parent>
+      <groupId>org.springframework.boot</groupId>
+      <artifactId>spring-boot-starter-parent</artifactId>
+      <version>4.1.1</version>
+      <relativePath />
+   </parent>
+
+   <groupId>com.vspiewak</groupId>
+   <artifactId>spring-gcp-observability</artifactId>
+   <version>0.0.1-SNAPSHOT</version>
+   <packaging>pom</packaging>
+
+   <modules>
+      <module>observability-starter</module>
+      <module>orders-api</module>
+   </modules>
+
+   <properties>
+      <java.version>25</java.version>
+
+      <spring-cloud-gcp.version>8.2.2</spring-cloud-gcp.version>
+
+      <jib-maven-plugin.version>3.5.2</jib-maven-plugin.version>
+      <spotless-maven-plugin.version>3.9.0</spotless-maven-plugin.version>
+      <google-java-format.version>1.36.1</google-java-format.version>
+
+      <!-- only the deployable service switches jib on -->
+      <jib.skip>true</jib.skip>
+   </properties>
+
+   <dependencyManagement>
+      <dependencies>
+         <!-- FIRST : spring-cloud-gcp-dependencies imports a newer junit-bom ; declared before it,
+              Boot's own junit line wins -->
+         <dependency>
+            <groupId>org.junit</groupId>
+            <artifactId>junit-bom</artifactId>
+            <version>${junit-jupiter.version}</version>
+            <type>pom</type>
+            <scope>import</scope>
+         </dependency>
+
+         <!-- its Spring Boot starter pins are 4.1.1 : aligned with the parent above -->
+         <dependency>
+            <groupId>com.google.cloud</groupId>
+            <artifactId>spring-cloud-gcp-dependencies</artifactId>
+            <version>${spring-cloud-gcp.version}</version>
+            <type>pom</type>
+            <scope>import</scope>
+         </dependency>
+
+         <dependency>
+            <groupId>com.vspiewak</groupId>
+            <artifactId>observability-starter</artifactId>
+            <version>${project.version}</version>
+         </dependency>
+      </dependencies>
+   </dependencyManagement>
+
+   <build>
+      <pluginManagement>
+         <plugins>
+            <plugin>
+               <groupId>com.google.cloud.tools</groupId>
+               <artifactId>jib-maven-plugin</artifactId>
+               <version>${jib-maven-plugin.version}</version>
+               <configuration>
+                  <from>
+                     <image>eclipse-temurin:25-jre</image>
+                  </from>
+                  <container>
+                     <user>1001</user>
+                  </container>
+               </configuration>
+            </plugin>
+
+            <plugin>
+               <groupId>com.diffplug.spotless</groupId>
+               <artifactId>spotless-maven-plugin</artifactId>
+               <version>${spotless-maven-plugin.version}</version>
+               <configuration>
+                  <java>
+                     <googleJavaFormat>
+                        <version>${google-java-format.version}</version>
+                     </googleJavaFormat>
+                     <removeUnusedImports />
+                     <formatAnnotations />
+                  </java>
+               </configuration>
+               <executions>
+                  <execution>
+                     <goals>
+                        <goal>check</goal>
+                     </goals>
+                     <phase>compile</phase>
+                  </execution>
+               </executions>
+            </plugin>
+         </plugins>
+      </pluginManagement>
+
+      <plugins>
+         <!-- the *IT lane : configured by the starter parent, switched on here -->
+         <plugin>
+            <groupId>org.apache.maven.plugins</groupId>
+            <artifactId>maven-failsafe-plugin</artifactId>
+         </plugin>
+
+         <plugin>
+            <groupId>com.diffplug.spotless</groupId>
+            <artifactId>spotless-maven-plugin</artifactId>
+         </plugin>
+      </plugins>
+   </build>
+
+</project>

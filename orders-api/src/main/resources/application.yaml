@@ -1,0 +1,6 @@
+---
+spring:
+  application:
+    name: "orders-api"
+  mongodb:
+    database: "orders"
