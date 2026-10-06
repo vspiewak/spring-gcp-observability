@@ -61,7 +61,7 @@ class ObservabilityDefaultsEnvironmentPostProcessorTest {
     assertThat(environment.getProperty("management.opentelemetry.tracing.export.otlp.endpoint"))
         .isEqualTo("https://telemetry.googleapis.com/v1/traces");
     assertThat(
-            environment.getProperty("management.opentelemetry.resource-attributes[gcp.project_id]"))
+            environment.getProperty("management.opentelemetry.resource-attributes.gcp.project_id"))
         .isEqualTo("demo-project");
     assertThat(environment.getProperty("logging.structured.format.console")).isEqualTo("logstash");
   }
