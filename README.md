@@ -32,6 +32,8 @@ curl ─► Cloud Run ─► orders-api ─────────────�
 One request, one trace : Cloud Run's front-end span, orders-api's, MongoDB's, the call out, Cloud Run's
 again, pricing-api's — and every log line of both services filed under that same trace.
 
+![One request in Cloud Trace : nine spans across orders-api and pricing-api — Cloud Run's front end, the HTTP server span, OrderService#findByOrderId, the MongoDB find, the call to pricing-api, Cloud Run again, pricing-api's server span and PricingService#quote](./docs/images/trace.png)
+
 ## 🧾 What a service contains
 
 One dependency, in both :
@@ -151,6 +153,16 @@ same trace. It is registered in `META-INF/spring.factories`, not through
 Proven by [`CloudLoggingJsonMembersCustomizerTest`](./observability-starter/src/test/java/com/vspiewak/observability/logging/CloudLoggingJsonMembersCustomizerTest.java)
 and [`CloudLoggingIT`](./orders-api/src/test/java/com/vspiewak/orders/platform/CloudLoggingIT.java).
 
+The span id puts each line on its span — open `OrderService#findByOrderId` in Cloud Trace, and its
+log line is right there :
+
+![Cloud Trace, span OrderService#findByOrderId selected, its Logs & Events tab showing the log line "found order demo-e4250e78, priced at 50.40"](./docs/images/trace-span-logs.png)
+
+And the trace id files both services' lines together — the same request in the Logs Explorer, queried
+by `trace=` : both Cloud Run request logs, then pricing-api's and orders-api's own lines.
+
+![Logs Explorer queried by trace : four entries — orders-api's and pricing-api's Cloud Run request logs, "quoted 42 at 50.40", "found order demo-e4250e78, priced at 50.40"](./docs/images/logs.png)
+
 ### 🍃 MongoDB, traced by its own driver
 
 The driver (5.7+) traces itself once it is handed an `ObservationRegistry` ; Boot does not do it. Every
@@ -258,10 +270,18 @@ Measured while building this, on Spring Boot 4.1, Cloud Run and the Telemetry AP
   still hands the service a `traceparent` naming its own span as the parent — but never records that
   span : the service's spans hang under a placeholder. The alternatives are worse : follow Cloud Run's
   decision and most requests leave no trace, start a fresh trace and the service's logs no longer share
-  Cloud Run's request log trace id. When Cloud Run does sample (or a client sends a sampled
-  `traceparent`, as `demo.sh` does), its own span is there — and the placeholder moves up one level :
-  Cloud Run's span has a parent of its own, never recorded in the project (presumably Google's front
-  end — not documented that we found).
+  Cloud Run's request log trace id. When Cloud Run does sample, its own span is there — and the
+  placeholder moves up one level : Cloud Run's span has a parent of its own, never recorded in the
+  project (presumably Google's front end — not documented that we found).
+* **A sampled `traceparent` does not force Cloud Run's span.** `demo.sh` asks for sampling, and Cloud
+  Run mostly honours it — not always : a GET sent right after the POST that seeds it came back without
+  Cloud Run's span, the same GET sent 15 seconds later with it. Cloud Run's 0.1 request per second
+  per instance cap looks like the reason. The service's own spans are there either way.
+* **The trace shows the cold start.** After forty minutes without traffic, pricing-api had scaled to
+  zero : the call to it took 13.3 seconds, of which pricing-api itself spent 200 ms — the rest is Cloud
+  Run's front end waiting for an instance to start.
+
+  ![A cold-start trace : the call to pricing-api lasts 13.3 s, pricing-api's own server span 200 ms](./docs/images/trace-cold-start.png)
 * **Trace storage provisions itself, in `us`.** Spans are stored in an observability bucket named
   `_Trace`, created about two minutes after the project's first span — in the `us` location by default.
   Until it exists, reading a trace answers `404 _Trace bucket not found`. Create it yourself first if the
