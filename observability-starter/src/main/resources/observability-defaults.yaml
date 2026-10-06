@@ -5,9 +5,6 @@ management:
       # decide on the trace id alone : Cloud Run flags most requests "not sampled", and Boot's
       # parent-based default would drop them
       sampler: "trace-id-ratio"
-    resource-attributes:
-      # the Telemetry API files every span under this project
-      "[gcp.project_id]": "${spring.cloud.gcp.project-id:}"
   tracing:
     sampling:
       probability: 1.0

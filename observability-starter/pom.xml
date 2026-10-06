@@ -35,10 +35,10 @@
          <artifactId>spring-boot-starter-aspectj</artifactId>
       </dependency>
 
-      <!-- Google Cloud : credentials and the spring.cloud.gcp.* namespace, nothing else -->
+      <!-- Google Cloud : the access token for the trace export, nothing else -->
       <dependency>
-         <groupId>com.google.cloud</groupId>
-         <artifactId>spring-cloud-gcp-starter</artifactId>
+         <groupId>com.google.auth</groupId>
+         <artifactId>google-auth-library-oauth2-http</artifactId>
       </dependency>
 
       <!-- MongoDB driver tracing, for the services that have a MongoDB -->

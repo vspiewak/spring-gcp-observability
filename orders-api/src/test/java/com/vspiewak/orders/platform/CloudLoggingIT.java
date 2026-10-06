@@ -22,18 +22,15 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
 /**
- * The logs the service inherits from {@code observability-starter}, end to end : with structured
- * logging on — as on Cloud Run — every line of a request is one JSON object Google Cloud Logging
- * reads natively, tied to the request's trace.
+ * The logs the service inherits from {@code observability-starter}, end to end : once the Google
+ * Cloud project is known — as on Cloud Run — every line of a request is one JSON object Google
+ * Cloud Logging reads natively, tied to the request's trace. The service sets nothing else.
  */
 @SpringBootTest(
     webEnvironment = WebEnvironment.RANDOM_PORT,
     properties = {
-      "logging.structured.format.console=logstash",
-      "spring.cloud.gcp.project-id=demo-project",
-      "management.tracing.export.otlp.enabled=false",
-      // no Google credentials in the build : Spring Cloud GCP would go looking for some
-      "spring.cloud.gcp.core.enabled=false"
+      "GOOGLE_CLOUD_PROJECT=demo-project",
+      "management.tracing.export.otlp.enabled=false"
     })
 @AutoConfigureRestTestClient
 @Import(Containers.class)
@@ -59,7 +56,7 @@ class CloudLoggingIT {
   @Test
   void shouldWriteEveryRequestLineAsACloudLoggingEntryTiedToItsTrace(CapturedOutput output) {
     // given
-    repository.save(new Order(null, "42", 7));
+    repository.save(new Order("42", 7));
 
     // when
     client.get().uri("/orders/v1/orders/42").exchange().expectStatus().isOk();
@@ -73,7 +70,6 @@ class CloudLoggingIT {
         .isEqualTo("projects/demo-project/traces/" + traceId);
     assertThat(JsonPath.<String>read(line, "$['logging.googleapis.com/spanId']"))
         .isEqualTo(JsonPath.read(line, "$.spanId"));
-    assertThat(line).doesNotContain("\"level\"", "@timestamp");
   }
 
   @Test

@@ -26,13 +26,13 @@ public class OrderService {
   }
 
   public Order create(String orderId, Integer amount) {
-    var order = repository.save(new Order(null, orderId, amount));
+    var order = repository.save(new Order(orderId, amount));
     log.info("created order {}", orderId);
     return order;
   }
 
   public Optional<PricedOrder> findByOrderId(String orderId) {
-    var order = repository.findByOrderId(orderId);
+    var order = repository.findById(orderId);
     if (order.isEmpty()) {
       log.warn("no order {}", orderId);
       return Optional.empty();

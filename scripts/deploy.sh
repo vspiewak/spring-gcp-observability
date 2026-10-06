@@ -40,13 +40,13 @@ pricing_image=$(output pricing_api_image)
 apply ${orders_image:+-var "orders_api_image=$orders_image"} \
   ${pricing_image:+-var "pricing_api_image=$pricing_image"}
 
-# 2. the images : built and pushed by Jib, no Docker daemon needed
+# 2. the images : built and pushed by Jib, no Docker daemon needed — gcloud's credential helper
+#    signs the push
 repository=$(output image_repository)
 ./mvnw -q -ntp -pl orders-api,pricing-api -am package jib:build -DskipTests \
   -Dimage.repository="$repository" \
   -Dimage.tag="$(git rev-parse --short HEAD 2>/dev/null || echo latest)" \
-  -Djib.to.auth.username=oauth2accesstoken \
-  -Djib.to.auth.password="$(gcloud auth print-access-token)"
+  -Djib.to.credHelper=gcloud
 
 # 3. Cloud Run, switched to those exact images
 apply -auto-approve \

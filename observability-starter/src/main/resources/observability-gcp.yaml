@@ -1,0 +1,15 @@
+---
+# on Google Cloud : traces to Cloud Trace, logs as JSON lines for Cloud Logging
+management:
+  opentelemetry:
+    tracing:
+      export:
+        otlp:
+          endpoint: "https://telemetry.googleapis.com/v1/traces"
+    resource-attributes:
+      # the Telemetry API files every span under this project
+      "[gcp.project_id]": "${GOOGLE_CLOUD_PROJECT}"
+logging:
+  structured:
+    format:
+      console: "logstash"

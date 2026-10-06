@@ -9,15 +9,15 @@ import org.springframework.boot.env.YamlPropertySourceLoader;
 import org.springframework.core.Ordered;
 import org.springframework.core.env.ConfigurableEnvironment;
 import org.springframework.core.io.ClassPathResource;
+import org.springframework.util.StringUtils;
 
 /**
- * Loads {@code observability-defaults.yaml} below everything else : a service's own configuration
- * wins over any of these defaults.
+ * Loads the platform defaults below everything else, so a service's own configuration wins : {@code
+ * observability-defaults.yaml} always, {@code observability-gcp.yaml} once {@code
+ * GOOGLE_CLOUD_PROJECT} says the service runs on Google Cloud.
  */
 public class ObservabilityDefaultsEnvironmentPostProcessor
     implements EnvironmentPostProcessor, Ordered {
-
-  private static final String NAME = "observability-defaults";
 
   /** After config data : {@code application.yaml} must be in place to go below it. */
   @Override
@@ -28,9 +28,16 @@ public class ObservabilityDefaultsEnvironmentPostProcessor
   @Override
   public void postProcessEnvironment(
       ConfigurableEnvironment environment, SpringApplication application) {
+    load(environment, "observability-defaults");
+    if (StringUtils.hasText(environment.getProperty("GOOGLE_CLOUD_PROJECT"))) {
+      load(environment, "observability-gcp");
+    }
+  }
+
+  private static void load(ConfigurableEnvironment environment, String name) {
     try {
       new YamlPropertySourceLoader()
-          .load(NAME, new ClassPathResource(NAME + ".yaml"))
+          .load(name, new ClassPathResource(name + ".yaml"))
           .forEach(environment.getPropertySources()::addLast);
     } catch (IOException ex) {
       throw new UncheckedIOException(ex);

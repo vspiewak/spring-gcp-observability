@@ -1,65 +1,48 @@
 package com.vspiewak.observability.tracing;
 
-import com.google.api.gax.core.CredentialsProvider;
-import com.google.auth.Credentials;
 import com.google.auth.oauth2.GoogleCredentials;
-import io.opentelemetry.exporter.otlp.http.trace.OtlpHttpSpanExporterBuilder;
 import java.io.IOException;
 import java.io.UncheckedIOException;
-import java.net.URI;
-import org.springframework.beans.factory.ObjectProvider;
+import java.util.HashMap;
+import java.util.Map;
+import java.util.function.Supplier;
 import org.springframework.boot.autoconfigure.AutoConfiguration;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnBooleanProperty;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnClass;
-import org.springframework.boot.autoconfigure.condition.ConditionalOnMissingBean;
 import org.springframework.boot.autoconfigure.condition.ConditionalOnProperty;
-import org.springframework.boot.micrometer.tracing.opentelemetry.autoconfigure.otlp.OtlpTracingConnectionDetails;
-import org.springframework.boot.micrometer.tracing.opentelemetry.autoconfigure.otlp.Transport;
+import org.springframework.boot.micrometer.tracing.opentelemetry.autoconfigure.otlp.OtlpHttpSpanExporterBuilderCustomizer;
 import org.springframework.context.annotation.Bean;
-import org.springframework.core.env.Environment;
+import org.springframework.util.function.SingletonSupplier;
 
 /**
- * Exports the traces to Cloud Trace once the project is known ({@code spring.cloud.gcp.project-id})
- * — without it, nothing leaves the machine. Off with {@code platform.cloud-trace.enabled=false}.
+ * Signs every trace export with a Google access token. Boot's OTLP exporter only sends fixed
+ * headers, and a token expires : the headers are read again on every export.
  */
-@AutoConfiguration(
-    beforeName =
-        "org.springframework.boot.micrometer.tracing.opentelemetry.autoconfigure.otlp.OtlpTracingAutoConfiguration")
-@ConditionalOnClass({OtlpHttpSpanExporterBuilder.class, GoogleCredentials.class})
-@ConditionalOnProperty("spring.cloud.gcp.project-id")
-@ConditionalOnBooleanProperty(name = "platform.cloud-trace.enabled", matchIfMissing = true)
+@AutoConfiguration
+@ConditionalOnProperty("GOOGLE_CLOUD_PROJECT")
 public class CloudTraceAutoConfiguration {
 
-  static final String TELEMETRY_API = "https://telemetry.googleapis.com/v1/traces";
-
-  /** Google's OTLP endpoint, unless the service points the export elsewhere. */
   @Bean
-  @ConditionalOnMissingBean
-  public OtlpTracingConnectionDetails cloudTraceConnectionDetails(Environment environment) {
-    String endpoint =
-        environment.getProperty(
-            "management.opentelemetry.tracing.export.otlp.endpoint", TELEMETRY_API);
-    return transport -> endpoint;
+  public OtlpHttpSpanExporterBuilderCustomizer googleCloudAuthentication() {
+    Supplier<GoogleCredentials> credentials =
+        SingletonSupplier.of(CloudTraceAutoConfiguration::applicationDefaultCredentials);
+    return builder -> builder.setHeaders(() -> authorization(credentials.get()));
   }
 
-  @Bean
-  @ConditionalOnMissingBean
-  public GoogleCloudOtlpAuthCustomizer googleCloudOtlpAuthCustomizer(
-      ObjectProvider<CredentialsProvider> credentialsProvider,
-      OtlpTracingConnectionDetails connectionDetails) {
-    return new GoogleCloudOtlpAuthCustomizer(
-        () -> credentials(credentialsProvider),
-        URI.create(connectionDetails.getUrl(Transport.HTTP)));
-  }
-
-  /** Spring Cloud GCP's credentials when configured, the Application Default Credentials else. */
-  private static Credentials credentials(ObjectProvider<CredentialsProvider> credentialsProvider) {
+  static Map<String, String> authorization(GoogleCredentials credentials) {
     try {
-      CredentialsProvider configured = credentialsProvider.getIfAvailable();
-      return (configured != null)
-          ? configured.getCredentials()
-          : GoogleCredentials.getApplicationDefault()
-              .createScoped("https://www.googleapis.com/auth/cloud-platform");
+      Map<String, String> headers = new HashMap<>();
+      credentials
+          .getRequestMetadata()
+          .forEach((name, values) -> headers.put(name, String.join(",", values)));
+      return headers;
+    } catch (IOException ex) {
+      throw new UncheckedIOException(ex);
+    }
+  }
+
+  private static GoogleCredentials applicationDefaultCredentials() {
+    try {
+      return GoogleCredentials.getApplicationDefault()
+          .createScoped("https://www.googleapis.com/auth/cloud-platform");
     } catch (IOException ex) {
       throw new UncheckedIOException(ex);
     }

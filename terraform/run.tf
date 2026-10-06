@@ -28,15 +28,11 @@ resource "google_cloud_run_v2_service" "orders_api" {
         startup_cpu_boost = true
       }
 
-      # the only Google Cloud knowledge the service gets : which project it belongs to
+      # the only Google Cloud knowledge the service gets : which project it runs in — the
+      # observability starter turns Cloud Trace and Cloud Logging on from there
       env {
-        name  = "SPRING_CLOUD_GCP_PROJECT_ID"
+        name  = "GOOGLE_CLOUD_PROJECT"
         value = var.project_id
-      }
-      # one JSON object per line on stdout — the observability starter names its fields for Google
-      env {
-        name  = "LOGGING_STRUCTURED_FORMAT_CONSOLE"
-        value = "logstash"
       }
       env {
         name = "SPRING_MONGODB_URI"
@@ -96,12 +92,8 @@ resource "google_cloud_run_v2_service" "pricing_api" {
       }
 
       env {
-        name  = "SPRING_CLOUD_GCP_PROJECT_ID"
+        name  = "GOOGLE_CLOUD_PROJECT"
         value = var.project_id
-      }
-      env {
-        name  = "LOGGING_STRUCTURED_FORMAT_CONSOLE"
-        value = "logstash"
       }
     }
   }

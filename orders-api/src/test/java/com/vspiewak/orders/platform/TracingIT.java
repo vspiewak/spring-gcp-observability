@@ -41,10 +41,8 @@ import org.springframework.test.web.servlet.client.RestTestClient;
 @SpringBootTest(
     webEnvironment = WebEnvironment.RANDOM_PORT,
     properties = {
-      "spring.cloud.gcp.project-id=demo-project",
-      "management.tracing.export.otlp.enabled=false",
-      // no Google credentials in the build : Spring Cloud GCP would go looking for some
-      "spring.cloud.gcp.core.enabled=false"
+      "GOOGLE_CLOUD_PROJECT=demo-project",
+      "management.tracing.export.otlp.enabled=false"
     })
 @AutoConfigureRestTestClient
 @AutoConfigureTracing
@@ -77,7 +75,7 @@ class TracingIT {
   @BeforeEach
   void setUp() {
     repository.deleteAll();
-    repository.save(new Order(null, "42", 7));
+    repository.save(new Order("42", 7));
     spans.reset();
   }
 

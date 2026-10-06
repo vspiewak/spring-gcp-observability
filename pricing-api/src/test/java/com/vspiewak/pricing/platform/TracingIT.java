@@ -28,11 +28,7 @@ import org.springframework.test.web.servlet.client.RestTestClient;
  */
 @SpringBootTest(
     webEnvironment = WebEnvironment.RANDOM_PORT,
-    properties = {
-      "management.tracing.export.otlp.enabled=false",
-      // no Google credentials in the build : Spring Cloud GCP would go looking for some
-      "spring.cloud.gcp.core.enabled=false"
-    })
+    properties = {"management.tracing.export.otlp.enabled=false"})
 @AutoConfigureRestTestClient
 @AutoConfigureTracing
 @Import(TracingIT.CapturedSpans.class)

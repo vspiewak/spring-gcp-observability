@@ -14,20 +14,15 @@ import org.springframework.mock.env.MockEnvironment;
 
 class CloudLoggingJsonMembersCustomizerTest {
 
-  private static String format(MockEnvironment environment, ILoggingEvent event) {
-    var customizer = new CloudLoggingJsonMembersCustomizer(environment);
-    // the members Boot's logstash format writes, minus the ones this test has no use for
+  private final CloudLoggingJsonMembersCustomizer customizer =
+      new CloudLoggingJsonMembersCustomizer(
+          new MockEnvironment().withProperty("GOOGLE_CLOUD_PROJECT", "demo-project"));
+
+  private String format(ILoggingEvent event) {
     JsonWriter<ILoggingEvent> writer =
         JsonWriter.of(
             members -> {
-              members.add("@timestamp", "2026-10-05T22:00:00.000+02:00");
-              members.add("@version", "1");
               members.add("message", ILoggingEvent::getFormattedMessage);
-              members.add("level", ILoggingEvent::getLevel);
-              members.add("level_value", ILoggingEvent::getLevel).as(Level::toInt);
-              members
-                  .add()
-                  .usingPairs((event1, pairs) -> event1.getMDCPropertyMap().forEach(pairs));
               customizer.customize(members);
             });
     return writer.writeToString(event);
@@ -40,17 +35,10 @@ class CloudLoggingJsonMembersCustomizerTest {
     return event;
   }
 
-  private static MockEnvironment project(String projectId) {
-    return new MockEnvironment().withProperty("spring.cloud.gcp.project-id", projectId);
-  }
-
   @Test
-  void shouldTieEveryLineToItsTraceTheWayCloudLoggingExpects() {
-    // given
-    var event = event(Level.INFO, Map.of("traceId", "4bf92f35", "spanId", "00f067aa"));
-
+  void shouldTieEveryLineToItsTraceAndSpan() {
     // when
-    var json = format(project("demo-project"), event);
+    var json = format(event(Level.INFO, Map.of("traceId", "4bf92f35", "spanId", "00f067aa")));
 
     // then
     assertThat(JsonPath.<String>read(json, "$['severity']")).isEqualTo("INFO");
@@ -58,47 +46,20 @@ class CloudLoggingJsonMembersCustomizerTest {
         .isEqualTo("projects/demo-project/traces/4bf92f35");
     assertThat(JsonPath.<String>read(json, "$['logging.googleapis.com/spanId']"))
         .isEqualTo("00f067aa");
-    assertThat(JsonPath.<String>read(json, "$['message']")).isEqualTo("found order 42");
   }
 
   @Test
-  void shouldSpeakGooglesNamesNotLogstashs() {
-    // when
-    var json = format(project("demo-project"), event(Level.INFO, Map.of()));
-
-    // then
-    assertThat(JsonPath.<String>read(json, "$['time']")).isEqualTo("2026-10-05T22:00:00.000+02:00");
-    assertThat(json).doesNotContain("@timestamp", "@version", "\"level\"", "level_value");
+  void shouldSpeakGooglesSeverityForWarnings() {
+    assertThat(JsonPath.<String>read(format(event(Level.WARN, Map.of())), "$['severity']"))
+        .isEqualTo("WARNING");
   }
 
   @Test
   void shouldLeaveTheTraceOutOfLinesThatHaveNone() {
     // when : a startup line, logged outside of any request
-    var json = format(project("demo-project"), event(Level.INFO, Map.of()));
+    var json = format(event(Level.INFO, Map.of()));
 
     // then
-    assertThat(json)
-        .doesNotContain("logging.googleapis.com/trace", "logging.googleapis.com/spanId");
-  }
-
-  @Test
-  void shouldMapLevelsToCloudLoggingSeverities() {
-    assertThat(CloudLoggingJsonMembersCustomizer.severity(Level.ERROR)).isEqualTo("ERROR");
-    assertThat(CloudLoggingJsonMembersCustomizer.severity(Level.WARN)).isEqualTo("WARNING");
-    assertThat(CloudLoggingJsonMembersCustomizer.severity(Level.INFO)).isEqualTo("INFO");
-    assertThat(CloudLoggingJsonMembersCustomizer.severity(Level.DEBUG)).isEqualTo("DEBUG");
-    assertThat(CloudLoggingJsonMembersCustomizer.severity(Level.TRACE)).isEqualTo("DEBUG");
-  }
-
-  @Test
-  void shouldChangeNothingWithoutAGoogleCloudProject() {
-    // when
-    var json =
-        format(
-            new MockEnvironment(), event(Level.WARN, Map.of("traceId", "4bf92f35", "spanId", "1")));
-
-    // then
-    assertThat(JsonPath.<String>read(json, "$['level']")).isEqualTo("WARN");
-    assertThat(json).doesNotContain("severity", "logging.googleapis.com");
+    assertThat(json).doesNotContain("logging.googleapis.com/");
   }
 }

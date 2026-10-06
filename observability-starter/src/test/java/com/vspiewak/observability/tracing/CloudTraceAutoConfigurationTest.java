@@ -2,17 +2,19 @@ package com.vspiewak.observability.tracing;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.google.auth.oauth2.AccessToken;
+import com.google.auth.oauth2.GoogleCredentials;
 import io.opentelemetry.exporter.otlp.http.trace.OtlpHttpSpanExporter;
+import java.time.Instant;
+import java.util.Date;
 import org.junit.jupiter.api.Test;
 import org.springframework.boot.autoconfigure.AutoConfigurations;
+import org.springframework.boot.micrometer.tracing.opentelemetry.autoconfigure.otlp.OtlpHttpSpanExporterBuilderCustomizer;
 import org.springframework.boot.micrometer.tracing.opentelemetry.autoconfigure.otlp.OtlpTracingAutoConfiguration;
-import org.springframework.boot.micrometer.tracing.opentelemetry.autoconfigure.otlp.OtlpTracingConnectionDetails;
-import org.springframework.boot.micrometer.tracing.opentelemetry.autoconfigure.otlp.Transport;
 import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
 class CloudTraceAutoConfigurationTest {
 
-  /** Ours, next to Boot's OTLP exporter auto-configuration it feeds. */
   private final ApplicationContextRunner runner =
       new ApplicationContextRunner()
           .withConfiguration(
@@ -20,51 +22,37 @@ class CloudTraceAutoConfigurationTest {
                   CloudTraceAutoConfiguration.class, OtlpTracingAutoConfiguration.class));
 
   @Test
-  void shouldStayLocalWithoutAGoogleCloudProject() {
+  void shouldStayOutOfTheWayWithoutAGoogleCloudProject() {
     runner.run(
-        context -> {
-          assertThat(context).doesNotHaveBean(OtlpTracingConnectionDetails.class);
-          assertThat(context).doesNotHaveBean(GoogleCloudOtlpAuthCustomizer.class);
-          assertThat(context).doesNotHaveBean(OtlpHttpSpanExporter.class);
-        });
+        context ->
+            assertThat(context).doesNotHaveBean(OtlpHttpSpanExporterBuilderCustomizer.class));
   }
 
   @Test
-  void shouldExportToCloudTraceOnceTheProjectIsKnown() {
+  void shouldSignTheExportOnceTheProjectIsKnown() {
     runner
-        .withPropertyValues("spring.cloud.gcp.project-id=demo-project")
+        .withPropertyValues(
+            "GOOGLE_CLOUD_PROJECT=demo-project",
+            "management.opentelemetry.tracing.export.otlp.endpoint=https://telemetry.googleapis.com/v1/traces")
         .run(
             context -> {
-              assertThat(context.getBean(OtlpTracingConnectionDetails.class).getUrl(Transport.HTTP))
-                  .isEqualTo("https://telemetry.googleapis.com/v1/traces");
-              assertThat(context).hasSingleBean(GoogleCloudOtlpAuthCustomizer.class);
-              // Boot's own exporter picked the endpoint up : the ordering holds
+              assertThat(context).hasSingleBean(OtlpHttpSpanExporterBuilderCustomizer.class);
+              // Boot's own exporter is built with it — no credentials needed until the first export
               assertThat(context).hasSingleBean(OtlpHttpSpanExporter.class);
             });
   }
 
   @Test
-  void shouldLetTheServicePointTheExportElsewhere() {
-    runner
-        .withPropertyValues(
-            "spring.cloud.gcp.project-id=demo-project",
-            "management.opentelemetry.tracing.export.otlp.endpoint=http://localhost:4318/v1/traces")
-        .run(
-            context ->
-                assertThat(
-                        context.getBean(OtlpTracingConnectionDetails.class).getUrl(Transport.HTTP))
-                    .isEqualTo("http://localhost:4318/v1/traces"));
-  }
+  void shouldSendTheAccessTokenAsABearer() {
+    // given
+    var credentials =
+        GoogleCredentials.create(
+            new AccessToken("t0k3n", Date.from(Instant.now().plusSeconds(3600))));
 
-  @Test
-  void shouldBeSwitchedOffByProperty() {
-    runner
-        .withPropertyValues(
-            "spring.cloud.gcp.project-id=demo-project", "platform.cloud-trace.enabled=false")
-        .run(
-            context -> {
-              assertThat(context).doesNotHaveBean(GoogleCloudOtlpAuthCustomizer.class);
-              assertThat(context).doesNotHaveBean(OtlpHttpSpanExporter.class);
-            });
+    // when
+    var headers = CloudTraceAutoConfiguration.authorization(credentials);
+
+    // then
+    assertThat(headers).containsEntry("Authorization", "Bearer t0k3n");
   }
 }

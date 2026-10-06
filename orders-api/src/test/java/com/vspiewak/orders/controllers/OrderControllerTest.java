@@ -27,7 +27,7 @@ class OrderControllerTest {
   @Test
   void shouldCreateAnOrder() {
     // given
-    given(service.create("42", 7)).willReturn(new Order("id-1", "42", 7));
+    given(service.create("42", 7)).willReturn(new Order("42", 7));
 
     // when
     var response =
