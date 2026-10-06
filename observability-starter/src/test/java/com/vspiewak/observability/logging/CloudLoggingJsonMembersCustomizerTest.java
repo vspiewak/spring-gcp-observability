@@ -16,7 +16,7 @@ class CloudLoggingJsonMembersCustomizerTest {
 
   private final CloudLoggingJsonMembersCustomizer customizer =
       new CloudLoggingJsonMembersCustomizer(
-          new MockEnvironment().withProperty("GOOGLE_CLOUD_PROJECT", "demo-project"));
+          new MockEnvironment().withProperty("spring.cloud.gcp.project-id", "demo-project"));
 
   private String format(ILoggingEvent event) {
     JsonWriter<ILoggingEvent> writer =

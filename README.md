@@ -59,7 +59,7 @@ pricing:
 
 The rest is an ordinary controller → `@Observed` service → repository, and a `RestClient` built from
 Boot's `RestClient.Builder` to call pricing-api. On Cloud Run, the deployment sets **one** variable for
-observability — `GOOGLE_CLOUD_PROJECT`, Google's own — plus, for orders-api, its MongoDB URI (from Secret
+observability — `spring.cloud.gcp.project-id`, Spring Cloud GCP's own, as `SPRING_CLOUD_GCP_PROJECT_ID` — plus, for orders-api, its MongoDB URI (from Secret
 Manager) and pricing-api's URL.
 
 ## 🔭 What the starter does
@@ -68,10 +68,10 @@ Built on Spring Boot's own `spring-boot-starter-opentelemetry` — Micrometer ov
 OTLP export — the starter adds four small classes and two YAML files. The defaults —
 [`observability-defaults.yaml`](./observability-starter/src/main/resources/observability-defaults.yaml)
 always, [`observability-gcp.yaml`](./observability-starter/src/main/resources/observability-gcp.yaml)
-once `GOOGLE_CLOUD_PROJECT` is set — are loaded by an `EnvironmentPostProcessor` *below* the service's
+once `spring.cloud.gcp.project-id` is set — are loaded by an `EnvironmentPostProcessor` *below* the service's
 own configuration, so its `application.yaml` wins. Beans do the rest, what properties cannot express.
 
-| | without `GOOGLE_CLOUD_PROJECT` — a laptop | with it — Cloud Run |
+| | without `spring.cloud.gcp.project-id` — a laptop | with it — Cloud Run |
 |---|---|---|
 | traces | every request sampled, `@Observed` on, nothing exported | exported to Cloud Trace |
 | logs | Boot's plain console lines, trace id included | one JSON object per line, with Google's fields |
@@ -108,7 +108,8 @@ Boot already traces requests and exports OTLP. The starter adds the three things
 * **whose** : a `gcp.project_id` resource attribute on every span, the Telemetry API files spans by
   it — one line too
 * **a token, on every export** : the one Google-specific bean, an `OtlpHttpSpanExporterBuilderCustomizer`
-  setting the headers as a supplier, from the Application Default Credentials
+  setting the headers as a supplier, from Spring Cloud GCP's `CredentialsProvider` — the same credentials
+  every Spring Cloud GCP starter uses, configured once under `spring.cloud.gcp.credentials.*`
 
 Google's own `opentelemetry-gcp-auth-extension` is built for the Java agent and the SDK's
 autoconfiguration — Boot builds the SDK from beans instead ; the older `exporter-trace` is deprecated.
@@ -153,7 +154,7 @@ adds the three fields Google reads — the last three here :
 `projects/<project>/traces/<id>` form Cloud Run's own request log uses, so both land under the same
 trace. Proven by [`CloudLoggingJsonMembersCustomizerTest`](./observability-starter/src/test/java/com/vspiewak/observability/logging/CloudLoggingJsonMembersCustomizerTest.java)
 and [`CloudLoggingIT`](./orders-api/src/test/java/com/vspiewak/orders/platform/CloudLoggingIT.java) —
-which sets nothing but `GOOGLE_CLOUD_PROJECT`.
+which sets nothing but `spring.cloud.gcp.project-id`.
 
 The span id puts each line on its span — open `OrderService#findByOrderId` in Cloud Trace, and its
 log line is right there :
@@ -194,7 +195,7 @@ curl localhost:8080/orders/v1/orders/42            # then, in Jaeger : orders-ap
 
 Jaeger is optional, and the starter knows nothing about it : the variable is Boot's own property — set
 it in both terminals. Without it, nothing leaves the laptop, and both services still log the same trace
-id for a request, in their plain console lines. Give them a project instead — `GOOGLE_CLOUD_PROJECT=<project>`,
+id for a request, in their plain console lines. Give them a project instead — `SPRING_CLOUD_GCP_PROJECT_ID=<project>`,
 after `gcloud auth application-default login` and `gcloud auth application-default set-quota-project <project>`
 — and the same run logs JSON and sends its traces to Cloud Trace.
 
@@ -306,9 +307,10 @@ Measured while building this, on Spring Boot 4.1, Cloud Run and the Telemetry AP
   ingested : a trace read right away can show pricing-api's spans and not yet orders-api's.
 * **Trace flags are `03`, not `01`.** OpenTelemetry Java sets W3C Trace Context Level 2's *random trace
   id* bit next to *sampled* ; Cloud Run's front end takes it as sampled.
-* **No Spring Cloud GCP.** Its trace starter is built on Brave and Zipkin, not on the OpenTelemetry
-  bridge Boot exports from ; the one thing needed from Google, the access token, comes from
-  `google-auth-library` directly.
+* **Spring Cloud GCP for credentials, not for traces.** Its core starter gives the token the standard
+  Spring way, shared with Pub/Sub, Secret Manager and the rest — about 15 jars a service using any of
+  them carries anyway. Its trace starter is another story : built on Brave and Zipkin over gRPC, not on
+  the OpenTelemetry bridge Boot exports from, it follows Cloud Run's sampling flag.
 * **The free M0 tier** has no Workload Identity Federation (M10 and up), no peering, no private
   endpoint : the service authenticates with a password.
 

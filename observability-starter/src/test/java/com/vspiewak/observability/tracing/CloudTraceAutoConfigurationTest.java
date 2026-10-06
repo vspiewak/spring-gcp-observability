@@ -2,6 +2,7 @@ package com.vspiewak.observability.tracing;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
+import com.google.api.gax.core.CredentialsProvider;
 import com.google.auth.oauth2.AccessToken;
 import com.google.auth.oauth2.GoogleCredentials;
 import io.opentelemetry.exporter.otlp.http.trace.OtlpHttpSpanExporter;
@@ -15,11 +16,17 @@ import org.springframework.boot.test.context.runner.ApplicationContextRunner;
 
 class CloudTraceAutoConfigurationTest {
 
+  private static final GoogleCredentials CREDENTIALS =
+      GoogleCredentials.create(
+          new AccessToken("t0k3n", Date.from(Instant.now().plusSeconds(3600))));
+
+  /** Spring Cloud GCP's credentials, faked : no Google account involved. */
   private final ApplicationContextRunner runner =
       new ApplicationContextRunner()
           .withConfiguration(
               AutoConfigurations.of(
-                  CloudTraceAutoConfiguration.class, OtlpTracingAutoConfiguration.class));
+                  CloudTraceAutoConfiguration.class, OtlpTracingAutoConfiguration.class))
+          .withBean(CredentialsProvider.class, () -> () -> CREDENTIALS);
 
   @Test
   void shouldStayOutOfTheWayWithoutAGoogleCloudProject() {
@@ -32,27 +39,19 @@ class CloudTraceAutoConfigurationTest {
   void shouldSignTheExportOnceTheProjectIsKnown() {
     runner
         .withPropertyValues(
-            "GOOGLE_CLOUD_PROJECT=demo-project",
+            "spring.cloud.gcp.project-id=demo-project",
             "management.opentelemetry.tracing.export.otlp.endpoint=https://telemetry.googleapis.com/v1/traces")
         .run(
             context -> {
               assertThat(context).hasSingleBean(OtlpHttpSpanExporterBuilderCustomizer.class);
-              // Boot's own exporter is built with it — no credentials needed until the first export
+              // Boot's own exporter is built with it — no token fetched until the first export
               assertThat(context).hasSingleBean(OtlpHttpSpanExporter.class);
             });
   }
 
   @Test
   void shouldSendTheAccessTokenAsABearer() {
-    // given
-    var credentials =
-        GoogleCredentials.create(
-            new AccessToken("t0k3n", Date.from(Instant.now().plusSeconds(3600))));
-
-    // when
-    var headers = CloudTraceAutoConfiguration.authorization(credentials);
-
-    // then
-    assertThat(headers).containsEntry("Authorization", "Bearer t0k3n");
+    assertThat(CloudTraceAutoConfiguration.authorization(CREDENTIALS))
+        .containsEntry("Authorization", "Bearer t0k3n");
   }
 }

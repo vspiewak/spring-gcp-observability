@@ -16,7 +16,8 @@ public class CloudLoggingJsonMembersCustomizer
   private final String tracePrefix;
 
   public CloudLoggingJsonMembersCustomizer(Environment environment) {
-    this.tracePrefix = "projects/" + environment.getProperty("GOOGLE_CLOUD_PROJECT") + "/traces/";
+    this.tracePrefix =
+        "projects/" + environment.getProperty("spring.cloud.gcp.project-id") + "/traces/";
   }
 
   @Override

@@ -28,10 +28,10 @@ resource "google_cloud_run_v2_service" "orders_api" {
         startup_cpu_boost = true
       }
 
-      # the only Google Cloud knowledge the service gets : which project it runs in — the
-      # observability starter turns Cloud Trace and Cloud Logging on from there
+      # the only Google Cloud knowledge the service gets : which project it runs in — Spring Cloud
+      # GCP's own property ; the observability starter turns Cloud Trace and Cloud Logging on from there
       env {
-        name  = "GOOGLE_CLOUD_PROJECT"
+        name  = "SPRING_CLOUD_GCP_PROJECT_ID"
         value = var.project_id
       }
       env {
@@ -92,7 +92,7 @@ resource "google_cloud_run_v2_service" "pricing_api" {
       }
 
       env {
-        name  = "GOOGLE_CLOUD_PROJECT"
+        name  = "SPRING_CLOUD_GCP_PROJECT_ID"
         value = var.project_id
       }
     }

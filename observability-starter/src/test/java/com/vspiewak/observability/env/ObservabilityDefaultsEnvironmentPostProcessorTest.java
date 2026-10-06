@@ -55,7 +55,7 @@ class ObservabilityDefaultsEnvironmentPostProcessorTest {
   @Test
   void shouldTurnGoogleCloudOnWithTheProject() {
     // when
-    var environment = boot("--GOOGLE_CLOUD_PROJECT=demo-project");
+    var environment = boot("--spring.cloud.gcp.project-id=demo-project");
 
     // then
     assertThat(environment.getProperty("management.opentelemetry.tracing.export.otlp.endpoint"))

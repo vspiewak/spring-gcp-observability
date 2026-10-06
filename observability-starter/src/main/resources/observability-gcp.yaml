@@ -8,7 +8,7 @@ management:
           endpoint: "https://telemetry.googleapis.com/v1/traces"
     resource-attributes:
       # the Telemetry API files every span under this project
-      gcp.project_id: "${GOOGLE_CLOUD_PROJECT}"
+      gcp.project_id: "${spring.cloud.gcp.project-id}"
 logging:
   structured:
     format:

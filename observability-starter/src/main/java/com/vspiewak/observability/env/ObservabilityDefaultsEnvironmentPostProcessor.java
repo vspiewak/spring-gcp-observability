@@ -14,7 +14,7 @@ import org.springframework.util.StringUtils;
 /**
  * Loads the platform defaults below everything else, so a service's own configuration wins : {@code
  * observability-defaults.yaml} always, {@code observability-gcp.yaml} once {@code
- * GOOGLE_CLOUD_PROJECT} says the service runs on Google Cloud.
+ * spring.cloud.gcp.project-id} says the service runs on Google Cloud.
  */
 public class ObservabilityDefaultsEnvironmentPostProcessor
     implements EnvironmentPostProcessor, Ordered {
@@ -29,7 +29,7 @@ public class ObservabilityDefaultsEnvironmentPostProcessor
   public void postProcessEnvironment(
       ConfigurableEnvironment environment, SpringApplication application) {
     load(environment, "observability-defaults");
-    if (StringUtils.hasText(environment.getProperty("GOOGLE_CLOUD_PROJECT"))) {
+    if (StringUtils.hasText(environment.getProperty("spring.cloud.gcp.project-id"))) {
       load(environment, "observability-gcp");
     }
   }
