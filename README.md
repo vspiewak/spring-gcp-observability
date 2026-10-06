@@ -180,15 +180,23 @@ You need **Java 25** — `.sdkmanrc` pins Temurin 25.0.4 — and Docker for the 
 ```bash
 sdk env install
 ./mvnw verify                                      # unit + slice + *IT against a real MongoDB, no Google Cloud
-./mvnw install -DskipTests                         # once : -pl resolves the starter from ~/.m2
+./mvnw install -DskipTests                         # once, and after changing the starter : -pl takes it from ~/.m2
+
+docker compose up -d                               # Jaeger, its UI at http://localhost:16686
+export MANAGEMENT_OPENTELEMETRY_TRACING_EXPORT_OTLP_ENDPOINT=http://localhost:4318/v1/traces
+
 ./mvnw -pl pricing-api spring-boot:run             # pricing-api, at localhost:8081
 ./mvnw -pl orders-api spring-boot:test-run         # orders-api, on a MongoDB container, at localhost:8080
+
+curl -X POST localhost:8080/orders/v1/orders -H 'Content-Type: application/json' -d '{"orderId": "42", "amount": 7}'
+curl localhost:8080/orders/v1/orders/42            # then, in Jaeger : orders-api, one trace across both
 ```
 
-Both log the same trace id for a request, in their plain console lines. No project, nothing leaves the
-laptop. Give it one — `GOOGLE_CLOUD_PROJECT=<project>`, after `gcloud auth application-default login`
-and `gcloud auth application-default set-quota-project <project>` — and the same run logs JSON and sends
-its traces to Cloud Trace.
+Jaeger is optional, and the starter knows nothing about it : the variable is Boot's own property — set
+it in both terminals. Without it, nothing leaves the laptop, and both services still log the same trace
+id for a request, in their plain console lines. Give them a project instead — `GOOGLE_CLOUD_PROJECT=<project>`,
+after `gcloud auth application-default login` and `gcloud auth application-default set-quota-project <project>`
+— and the same run logs JSON and sends its traces to Cloud Trace.
 
 ## ☁️ Deploy it
 
