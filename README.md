@@ -75,8 +75,9 @@ observability — `spring.cloud.gcp.project-id`, Spring Cloud GCP's own, as `SPR
 — and, for orders-api, `SPRING_PROFILES_ACTIVE=gcp` and what `application-gcp.yaml` reads : `MONGODB_HOST`,
 `MONGODB_PASSWORD` (from Secret Manager) and `PRICING_URL`.
 
-Their tests are their own — a controller slice test each, on `spring-boot-starter-webmvc-test`, nothing
-about observability. The proofs live with the starter.
+Their tests are their own, on `spring-boot-starter-webmvc-test`, nothing about observability : a
+controller slice test each, and for orders-api a test of its two configurations. The proofs live with
+the starter.
 
 ## 🔭 What the starter does
 
