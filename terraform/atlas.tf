@@ -56,6 +56,6 @@ resource "mongodbatlas_project_ip_access_list" "anywhere" {
 }
 
 locals {
-  # what orders-api's application.yaml needs : the host of mongodb+srv://… (the password goes to Secret Manager)
+  # what orders-api's application-gcp.yaml needs : the host of mongodb+srv://… (the password goes to Secret Manager)
   mongodb_host = trimprefix(mongodbatlas_advanced_cluster.demo.connection_strings.standard_srv, "mongodb+srv://")
 }

@@ -1,6 +1,6 @@
 # The local loop, no Google Cloud : `docker compose up -d`
 services:
-  # orders-api's database, for its `local` profile
+  # orders-api's database : what its application.yaml points at
   mongo:
     image: "mongo:8.0"
     ports:

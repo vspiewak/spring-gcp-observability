@@ -34,7 +34,7 @@ resource "google_cloud_run_v2_service" "orders_api" {
         name  = "SPRING_CLOUD_GCP_PROJECT_ID"
         value = var.project_id
       }
-      # orders-api's application-gcp.yaml reads the three below
+      # the gcp profile : application-gcp.yaml, which reads the three variables after it
       env {
         name  = "SPRING_PROFILES_ACTIVE"
         value = "gcp"

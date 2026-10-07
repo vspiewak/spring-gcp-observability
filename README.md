@@ -18,7 +18,7 @@ Three layers, and each knows only what it must :
 | 🧾 [`orders-api`](./orders-api) — a service | its name, its MongoDB, where pricing-api is, `@Observed` — **no Google Cloud code** |
 | 🏷️ [`pricing-api`](./pricing-api) — another one | its name, its port, `@Observed` — **no Google Cloud code** |
 | 🔭 [`observability-starter`](./observability-starter) — the platform, as one dependency | how traces and logs reach Google : endpoint, token, project attribute, log field names, the sampler |
-| ☁️ [`terraform`](./terraform) — the infrastructure | which project, the database host and password, who may write traces, where pricing-api runs |
+| ☁️ [`terraform`](./terraform) — the infrastructure | which project, orders-api's Spring profile, the database host and password, who may write traces, where pricing-api runs |
 
 ```text
 curl ─► Cloud Run ─► orders-api ─────────────────────────► Cloud Run ─► pricing-api
