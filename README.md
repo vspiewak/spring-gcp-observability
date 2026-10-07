@@ -45,33 +45,35 @@ One dependency, in both :
 </dependency>
 ```
 
-And this, as orders-api's whole configuration — pricing-api's is its name and its port :
+And this, as orders-api's whole configuration — pricing-api's is its name and its port. `application.yaml`
+runs it on a laptop :
 
 ```yaml
 spring:
   application:
     name: "orders-api"
   mongodb:
-    # MongoDB Atlas on Cloud Run : Terraform hands over the host, Secret Manager the password
-    uri: "mongodb+srv://orders-api:${MONGODB_PASSWORD}@${MONGODB_HOST}/?retryWrites=true&w=majority"
+    uri: "mongodb://localhost:27017" # the MongoDB of compose.yaml
     database: "orders"
 pricing:
-  url: "${PRICING_URL:http://localhost:8081}"
----
-# on a laptop : the MongoDB of compose.yaml
+  url: "http://localhost:8081"
+```
+
+and `application-gcp.yaml`, the `gcp` profile Terraform switches on, on Cloud Run :
+
+```yaml
 spring:
-  config:
-    activate:
-      on-profile: "local"
   mongodb:
-    uri: "mongodb://localhost:27017"
+    uri: "mongodb+srv://orders-api:${MONGODB_PASSWORD}@${MONGODB_HOST}/?retryWrites=true&w=majority"
+pricing:
+  url: "${PRICING_URL}"
 ```
 
 The rest is an ordinary controller → `@Observed` service → repository, and a `RestClient` built from
 Boot's `RestClient.Builder` to call pricing-api. On Cloud Run, the deployment sets **one** variable for
 observability — `spring.cloud.gcp.project-id`, Spring Cloud GCP's own, as `SPRING_CLOUD_GCP_PROJECT_ID`
-— and the values orders-api's `application.yaml` reads : `MONGODB_HOST`, `MONGODB_PASSWORD` (from Secret
-Manager) and `PRICING_URL`.
+— and, for orders-api, `SPRING_PROFILES_ACTIVE=gcp` and what `application-gcp.yaml` reads : `MONGODB_HOST`,
+`MONGODB_PASSWORD` (from Secret Manager) and `PRICING_URL`.
 
 Their tests are their own — a controller slice test each, on `spring-boot-starter-webmvc-test`, nothing
 about observability. The proofs live with the starter.
@@ -200,7 +202,7 @@ docker compose up -d                               # MongoDB, and Jaeger with it
 export MANAGEMENT_OPENTELEMETRY_TRACING_EXPORT_OTLP_ENDPOINT=http://localhost:4318/v1/traces
 
 ./mvnw -pl pricing-api spring-boot:run                                  # at localhost:8081
-./mvnw -pl orders-api spring-boot:run -Dspring-boot.run.profiles=local  # at localhost:8080, on compose's MongoDB
+./mvnw -pl orders-api spring-boot:run                                   # at localhost:8080, on compose's MongoDB
 
 curl -X POST localhost:8080/orders/v1/orders -H 'Content-Type: application/json' -d '{"orderId": "42", "amount": 7}'
 curl localhost:8080/orders/v1/orders/42            # then, in Jaeger : orders-api, one trace across both

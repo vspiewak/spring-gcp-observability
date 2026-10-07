@@ -34,7 +34,11 @@ resource "google_cloud_run_v2_service" "orders_api" {
         name  = "SPRING_CLOUD_GCP_PROJECT_ID"
         value = var.project_id
       }
-      # orders-api's application.yaml builds the MongoDB URI from these two
+      # orders-api's application-gcp.yaml reads the three below
+      env {
+        name  = "SPRING_PROFILES_ACTIVE"
+        value = "gcp"
+      }
       env {
         name  = "MONGODB_HOST"
         value = local.mongodb_host

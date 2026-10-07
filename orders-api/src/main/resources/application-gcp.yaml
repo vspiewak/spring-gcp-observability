@@ -1,0 +1,7 @@
+---
+# on Cloud Run : Terraform hands over the Atlas host and pricing-api's URL, Secret Manager the password
+spring:
+  mongodb:
+    uri: "mongodb+srv://orders-api:${MONGODB_PASSWORD}@${MONGODB_HOST}/?retryWrites=true&w=majority"
+pricing:
+  url: "${PRICING_URL}"
