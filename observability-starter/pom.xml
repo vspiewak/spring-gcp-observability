@@ -8,15 +8,16 @@
       <version>0.0.1-SNAPSHOT</version>
    </parent>
 
+   <!-- the one dependency a service declares : the auto-configurations, and everything they need -->
    <artifactId>observability-starter</artifactId>
 
    <dependencies>
-      <!-- Spring Boot's own OpenTelemetry starter : Micrometer over the OpenTelemetry SDK, OTLP export -->
+      <!-- traces : Micrometer over the OpenTelemetry SDK, exported over OTLP -->
       <dependency>
          <groupId>org.springframework.boot</groupId>
          <artifactId>spring-boot-starter-opentelemetry</artifactId>
       </dependency>
-      <!-- brought at runtime by the starter ; declared because the token bean builds against it -->
+      <!-- brought at runtime by the starter above ; declared because the token bean builds against it -->
       <dependency>
          <groupId>io.opentelemetry</groupId>
          <artifactId>opentelemetry-exporter-otlp</artifactId>
@@ -26,14 +27,13 @@
          <groupId>org.springframework.boot</groupId>
          <artifactId>spring-boot-starter-aspectj</artifactId>
       </dependency>
-
-      <!-- Google Cloud, the Spring way : credentials and project, shared with every Spring Cloud GCP starter -->
+      <!-- Google Cloud credentials and project, the Spring way -->
       <dependency>
          <groupId>com.google.cloud</groupId>
          <artifactId>spring-cloud-gcp-starter</artifactId>
       </dependency>
 
-      <!-- MongoDB driver tracing, for the services that have a MongoDB -->
+      <!-- MongoDB driver tracing, for the services that have a MongoDB : they bring the driver -->
       <dependency>
          <groupId>org.springframework.boot</groupId>
          <artifactId>spring-boot-mongodb</artifactId>
@@ -48,6 +48,52 @@
       <dependency>
          <groupId>org.springframework.boot</groupId>
          <artifactId>spring-boot-starter-test</artifactId>
+         <scope>test</scope>
+      </dependency>
+      <!-- the end-to-end proofs boot a small sample service : web, MongoDB, a call out -->
+      <dependency>
+         <groupId>org.springframework.boot</groupId>
+         <artifactId>spring-boot-starter-webmvc</artifactId>
+         <scope>test</scope>
+      </dependency>
+      <dependency>
+         <groupId>org.springframework.boot</groupId>
+         <artifactId>spring-boot-starter-data-mongodb</artifactId>
+         <scope>test</scope>
+      </dependency>
+      <dependency>
+         <groupId>org.springframework.boot</groupId>
+         <artifactId>spring-boot-starter-restclient</artifactId>
+         <scope>test</scope>
+      </dependency>
+      <dependency>
+         <groupId>org.springframework.boot</groupId>
+         <artifactId>spring-boot-starter-webmvc-test</artifactId>
+         <scope>test</scope>
+      </dependency>
+      <dependency>
+         <groupId>org.springframework.boot</groupId>
+         <artifactId>spring-boot-micrometer-tracing-test</artifactId>
+         <scope>test</scope>
+      </dependency>
+      <dependency>
+         <groupId>io.opentelemetry</groupId>
+         <artifactId>opentelemetry-sdk-testing</artifactId>
+         <scope>test</scope>
+      </dependency>
+      <dependency>
+         <groupId>org.springframework.boot</groupId>
+         <artifactId>spring-boot-testcontainers</artifactId>
+         <scope>test</scope>
+      </dependency>
+      <dependency>
+         <groupId>org.testcontainers</groupId>
+         <artifactId>testcontainers-mongodb</artifactId>
+         <scope>test</scope>
+      </dependency>
+      <dependency>
+         <groupId>org.testcontainers</groupId>
+         <artifactId>testcontainers-junit-jupiter</artifactId>
          <scope>test</scope>
       </dependency>
    </dependencies>

@@ -1,5 +1,11 @@
-# Local traces, no Google Cloud : `docker compose up -d`, then http://localhost:16686
+# The local loop, no Google Cloud : `docker compose up -d`
 services:
+  # orders-api's database, for its `local` profile
+  mongo:
+    image: "mongo:8.0"
+    ports:
+      - "27017:27017"
+  # traces : the UI at http://localhost:16686
   jaeger:
     image: "jaegertracing/jaeger:2.21.0"
     ports:

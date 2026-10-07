@@ -1,4 +1,4 @@
-package com.vspiewak.orders;
+package com.vspiewak.observability.sample;
 
 import org.springframework.boot.test.context.TestConfiguration;
 import org.springframework.boot.testcontainers.service.connection.ServiceConnection;

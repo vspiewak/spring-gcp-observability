@@ -3,6 +3,16 @@ spring:
   application:
     name: "orders-api"
   mongodb:
+    # MongoDB Atlas on Cloud Run : Terraform hands over the host, Secret Manager the password
+    uri: "mongodb+srv://orders-api:${MONGODB_PASSWORD}@${MONGODB_HOST}/?retryWrites=true&w=majority"
     database: "orders"
 pricing:
-  url: "http://localhost:8081"
+  url: "${PRICING_URL:http://localhost:8081}"
+---
+# on a laptop : the MongoDB of compose.yaml
+spring:
+  config:
+    activate:
+      on-profile: "local"
+  mongodb:
+    uri: "mongodb://localhost:27017"

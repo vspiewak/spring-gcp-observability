@@ -1,12 +1,8 @@
-package com.vspiewak.orders.platform;
+package com.vspiewak.observability.sample;
 
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 
-import com.vspiewak.orders.Containers;
-import com.vspiewak.orders.PricingStub;
-import com.vspiewak.orders.domain.Order;
-import com.vspiewak.orders.repositories.OrderRepository;
 import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.trace.SpanKind;
 import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter;
@@ -32,11 +28,11 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
 /**
- * The tracing the service inherits from {@code observability-starter}, end to end : one request is
- * one trace from the HTTP server span down to the MongoDB driver and out to pricing-api, a trace
- * Cloud Run started is continued even when Cloud Run chose not to sample it, and every span names
- * its Google Cloud project. Spans are captured in memory, exactly as the OTLP exporter would hand
- * them to Google — which is switched off here, so nothing leaves the build.
+ * The tracing a service inherits from the starter, end to end : one request is one trace from the
+ * HTTP server span down to the MongoDB driver and out to the next service, a trace Cloud Run
+ * started is continued even when Cloud Run chose not to sample it, and every span names its Google
+ * Cloud project. Spans are captured in memory, exactly as the OTLP exporter would hand them to
+ * Google — which is switched off here, so nothing leaves the build.
  */
 @SpringBootTest(
     webEnvironment = WebEnvironment.RANDOM_PORT,
@@ -56,59 +52,60 @@ class TracingIT {
 
   private static final String CLOUD_RUN_SPAN_ID = "00f067aa0ba902b7";
 
-  private static final PricingStub pricing = PricingStub.start();
+  private static final DownstreamStub downstream = DownstreamStub.start();
 
   @DynamicPropertySource
-  static void pricingApi(DynamicPropertyRegistry registry) {
-    registry.add("pricing.url", pricing::url);
+  static void downstreamService(DynamicPropertyRegistry registry) {
+    registry.add("downstream.url", downstream::url);
   }
 
   @AfterAll
-  static void stopPricingApi() {
-    pricing.close();
+  static void stopDownstreamService() {
+    downstream.close();
   }
 
   @Autowired private RestTestClient client;
 
-  @Autowired private OrderRepository repository;
+  @Autowired private SampleRepository repository;
 
   @Autowired private InMemorySpanExporter spans;
 
   @BeforeEach
   void setUp() {
     repository.deleteAll();
-    repository.save(new Order("42", 7));
+    repository.save(new Sample("42", 7));
     spans.reset();
   }
 
   @Test
-  void shouldTraceARequestFromHttpDownToMongoAndOutToPricing() {
+  void shouldTraceARequestFromHttpDownToMongoAndOut() {
     // when
-    client.get().uri("/orders/v1/orders/42").exchange().expectStatus().isOk();
+    client.get().uri("/samples/42").exchange().expectStatus().isOk();
 
     // then
     var server = awaitServerSpan();
-    var service = onlyChild(server, "OrderService#findByOrderId");
+    var service = onlyChild(server, "SampleService#find");
     assertThat(childrenOf(service))
         .allSatisfy(span -> assertThat(span.getKind()).isEqualTo(SpanKind.CLIENT))
         .extracting(SpanData::getName)
-        .contains("find orders.orders", "http get");
+        .contains("http get")
+        .anyMatch(name -> name.startsWith("find "));
   }
 
   @Test
-  void shouldCarryTheTraceToPricingApi() {
+  void shouldCarryTheTraceToTheNextService() {
     // when
-    client.get().uri("/orders/v1/orders/42").exchange().expectStatus().isOk();
+    client.get().uri("/samples/42").exchange().expectStatus().isOk();
 
-    // then : pricing-api was called inside this trace, as a child of the outgoing call's span
+    // then : the next service was called inside this trace, as a child of the outgoing call's span
     var server = awaitServerSpan();
     var call =
-        childrenOf(onlyChild(server, "OrderService#findByOrderId")).stream()
+        childrenOf(onlyChild(server, "SampleService#find")).stream()
             .filter(span -> span.getName().equals("http get"))
             .findFirst()
             .orElseThrow();
     // traceparent : version - trace id - parent span id - flags (0x01 sampled, 0x02 random id)
-    var traceparent = pricing.traceparent().split("-");
+    var traceparent = downstream.traceparent().split("-");
     assertThat(traceparent[1]).isEqualTo(server.getTraceId());
     assertThat(traceparent[2]).isEqualTo(call.getSpanId());
     assertThat(Integer.parseInt(traceparent[3], 16) & 0x01).as("sampled").isEqualTo(1);
@@ -119,7 +116,7 @@ class TracingIT {
     // when : the "-00" flag is Cloud Run declining to sample this request
     client
         .get()
-        .uri("/orders/v1/orders/42")
+        .uri("/samples/42")
         .header("traceparent", "00-%s-%s-00".formatted(CLOUD_RUN_TRACE_ID, CLOUD_RUN_SPAN_ID))
         .exchange()
         .expectStatus()
@@ -134,7 +131,7 @@ class TracingIT {
   @Test
   void shouldNameTheGoogleCloudProjectOnEverySpan() {
     // when
-    client.get().uri("/orders/v1/orders/42").exchange().expectStatus().isOk();
+    client.get().uri("/samples/42").exchange().expectStatus().isOk();
 
     // then
     awaitServerSpan();
@@ -153,7 +150,7 @@ class TracingIT {
             () ->
                 spans.getFinishedSpanItems().stream()
                     .filter(span -> span.getKind() == SpanKind.SERVER)
-                    .filter(span -> span.getName().endsWith(" /orders/v1/orders/{orderId}"))
+                    .filter(span -> span.getName().endsWith(" /samples/{id}"))
                     .findFirst(),
             Optional::isPresent)
         .orElseThrow();

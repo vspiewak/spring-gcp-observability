@@ -56,10 +56,6 @@ resource "mongodbatlas_project_ip_access_list" "anywhere" {
 }
 
 locals {
-  mongodb_uri = format(
-    "mongodb+srv://%s:%s@%s/?retryWrites=true&w=majority",
-    mongodbatlas_database_user.orders_api.username,
-    random_password.orders_api.result,
-    trimprefix(mongodbatlas_advanced_cluster.demo.connection_strings.standard_srv, "mongodb+srv://"),
-  )
+  # what orders-api's application.yaml needs : the host of mongodb+srv://… (the password goes to Secret Manager)
+  mongodb_host = trimprefix(mongodbatlas_advanced_cluster.demo.connection_strings.standard_srv, "mongodb+srv://")
 }

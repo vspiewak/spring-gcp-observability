@@ -1,12 +1,8 @@
-package com.vspiewak.orders.platform;
+package com.vspiewak.observability.sample;
 
 import static org.assertj.core.api.Assertions.assertThat;
 
 import com.jayway.jsonpath.JsonPath;
-import com.vspiewak.orders.Containers;
-import com.vspiewak.orders.PricingStub;
-import com.vspiewak.orders.domain.Order;
-import com.vspiewak.orders.repositories.OrderRepository;
 import org.junit.jupiter.api.AfterAll;
 import org.junit.jupiter.api.Test;
 import org.junit.jupiter.api.extension.ExtendWith;
@@ -22,9 +18,9 @@ import org.springframework.test.context.DynamicPropertySource;
 import org.springframework.test.web.servlet.client.RestTestClient;
 
 /**
- * The logs the service inherits from {@code observability-starter}, end to end : once the Google
- * Cloud project is known — as on Cloud Run — every line of a request is one JSON object Google
- * Cloud Logging reads natively, tied to the request's trace. The service sets nothing else.
+ * The logs a service inherits from the starter, end to end : once the Google Cloud project is known
+ * — as on Cloud Run — every line of a request is one JSON object Google Cloud Logging reads
+ * natively, tied to the request's trace. The service sets nothing else.
  */
 @SpringBootTest(
     webEnvironment = WebEnvironment.RANDOM_PORT,
@@ -39,33 +35,38 @@ import org.springframework.test.web.servlet.client.RestTestClient;
 @ExtendWith(OutputCaptureExtension.class)
 class CloudLoggingIT {
 
-  private static final PricingStub pricing = PricingStub.start();
+  private static final DownstreamStub downstream = DownstreamStub.start();
 
   @DynamicPropertySource
-  static void pricingApi(DynamicPropertyRegistry registry) {
-    registry.add("pricing.url", pricing::url);
+  static void downstreamService(DynamicPropertyRegistry registry) {
+    registry.add("downstream.url", downstream::url);
   }
 
   @AfterAll
-  static void stopPricingApi() {
-    pricing.close();
+  static void stopDownstreamService() {
+    downstream.close();
   }
 
   @Autowired private RestTestClient client;
 
-  @Autowired private OrderRepository repository;
+  @Autowired private SampleRepository repository;
 
   @Test
   void shouldWriteEveryRequestLineAsACloudLoggingEntryTiedToItsTrace(CapturedOutput output) {
     // given
-    repository.save(new Order("42", 7));
+    repository.save(new Sample("42", 7));
 
     // when
-    client.get().uri("/orders/v1/orders/42").exchange().expectStatus().isOk();
+    client.get().uri("/samples/42").exchange().expectStatus().isOk();
 
     // then
     var line =
-        output.getOut().lines().filter(l -> l.contains("found order 42")).findFirst().orElseThrow();
+        output
+            .getOut()
+            .lines()
+            .filter(l -> l.contains("found sample 42"))
+            .findFirst()
+            .orElseThrow();
     String traceId = JsonPath.read(line, "$.traceId");
     assertThat(JsonPath.<String>read(line, "$.severity")).isEqualTo("INFO");
     assertThat(JsonPath.<String>read(line, "$['logging.googleapis.com/trace']"))
@@ -77,10 +78,10 @@ class CloudLoggingIT {
   @Test
   void shouldMapAWarningToCloudLoggingsSeverity(CapturedOutput output) {
     // when
-    client.get().uri("/orders/v1/orders/999").exchange().expectStatus().isNotFound();
+    client.get().uri("/samples/999").exchange().expectStatus().isNotFound();
 
     // then
-    var line = output.getOut().lines().filter(l -> l.contains("no order 999")).findFirst();
+    var line = output.getOut().lines().filter(l -> l.contains("no sample 999")).findFirst();
     assertThat(line).hasValueSatisfying(l -> assertThat(l).contains("\"severity\":\"WARNING\""));
   }
 }

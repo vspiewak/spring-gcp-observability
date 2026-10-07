@@ -34,11 +34,16 @@ resource "google_cloud_run_v2_service" "orders_api" {
         name  = "SPRING_CLOUD_GCP_PROJECT_ID"
         value = var.project_id
       }
+      # orders-api's application.yaml builds the MongoDB URI from these two
       env {
-        name = "SPRING_MONGODB_URI"
+        name  = "MONGODB_HOST"
+        value = local.mongodb_host
+      }
+      env {
+        name = "MONGODB_PASSWORD"
         value_source {
           secret_key_ref {
-            secret  = google_secret_manager_secret.mongodb_uri.secret_id
+            secret  = google_secret_manager_secret.mongodb_password.secret_id
             version = "latest"
           }
         }
@@ -52,7 +57,7 @@ resource "google_cloud_run_v2_service" "orders_api" {
 
   depends_on = [
     google_project_service.apis,
-    google_secret_manager_secret_version.mongodb_uri,
+    google_secret_manager_secret_version.mongodb_password,
     google_secret_manager_secret_iam_member.orders_api,
     google_project_iam_member.traces,
   ]

@@ -17,8 +17,8 @@ Three layers, and each knows only what it must :
 |---|---|
 | 🧾 [`orders-api`](./orders-api) — a service | its name, its MongoDB, where pricing-api is, `@Observed` — **no Google Cloud code** |
 | 🏷️ [`pricing-api`](./pricing-api) — another one | its name, its port, `@Observed` — **no Google Cloud code** |
-| 🔭 [`observability-starter`](./observability-starter) — the platform | how traces and logs reach Google : endpoint, token, project attribute, log field names, the sampler |
-| ☁️ [`terraform`](./terraform) — the infrastructure | which project, JSON logs on, the database secret, who may write traces, where pricing-api runs |
+| 🔭 [`observability-starter`](./observability-starter) — the platform, as one dependency | how traces and logs reach Google : endpoint, token, project attribute, log field names, the sampler |
+| ☁️ [`terraform`](./terraform) — the infrastructure | which project, the database host and password, who may write traces, where pricing-api runs |
 
 ```text
 curl ─► Cloud Run ─► orders-api ─────────────────────────► Cloud Run ─► pricing-api
@@ -52,15 +52,29 @@ spring:
   application:
     name: "orders-api"
   mongodb:
+    # MongoDB Atlas on Cloud Run : Terraform hands over the host, Secret Manager the password
+    uri: "mongodb+srv://orders-api:${MONGODB_PASSWORD}@${MONGODB_HOST}/?retryWrites=true&w=majority"
     database: "orders"
 pricing:
-  url: "http://localhost:8081"
+  url: "${PRICING_URL:http://localhost:8081}"
+---
+# on a laptop : the MongoDB of compose.yaml
+spring:
+  config:
+    activate:
+      on-profile: "local"
+  mongodb:
+    uri: "mongodb://localhost:27017"
 ```
 
 The rest is an ordinary controller → `@Observed` service → repository, and a `RestClient` built from
 Boot's `RestClient.Builder` to call pricing-api. On Cloud Run, the deployment sets **one** variable for
-observability — `spring.cloud.gcp.project-id`, Spring Cloud GCP's own, as `SPRING_CLOUD_GCP_PROJECT_ID` — plus, for orders-api, its MongoDB URI (from Secret
-Manager) and pricing-api's URL.
+observability — `spring.cloud.gcp.project-id`, Spring Cloud GCP's own, as `SPRING_CLOUD_GCP_PROJECT_ID`
+— and the values orders-api's `application.yaml` reads : `MONGODB_HOST`, `MONGODB_PASSWORD` (from Secret
+Manager) and `PRICING_URL`.
+
+Their tests are their own — a controller slice test each, on `spring-boot-starter-webmvc-test`, nothing
+about observability. The proofs live with the starter.
 
 ## 🔭 What the starter does
 
@@ -95,7 +109,7 @@ The starter samples on the trace id alone — two lines of defaults, `sampler: t
 Both are defaults : a service's `application.yaml` sets either back. Proven by
 [`ObservabilityDefaultsEnvironmentPostProcessorTest`](./observability-starter/src/test/java/com/vspiewak/observability/env/ObservabilityDefaultsEnvironmentPostProcessorTest.java)
 — which boots a real `application.yaml` over the defaults, and fails if the post processor runs before
-Boot loads it — and by [`TracingIT`](./orders-api/src/test/java/com/vspiewak/orders/platform/TracingIT.java) :
+Boot loads it — and by [`TracingIT`](./observability-starter/src/test/java/com/vspiewak/observability/sample/TracingIT.java) :
 a request flagged `-00` is still recorded, inside the caller's trace. Put Boot's sampler back and that
 test fails.
 
@@ -127,11 +141,9 @@ downstream, and Cloud Run in front of pricing-api honours it. A burst of six req
 | 2 | yes | 5 each | 2 each |
 | 4 | **no** | **5 each** | **2 each** |
 
-Proven by [`TracingIT`](./orders-api/src/test/java/com/vspiewak/orders/platform/TracingIT.java) —
-pricing-api, stood in by a local HTTP server, is called with the request's trace id and the client
-span as parent — and by pricing-api's own
-[`TracingIT`](./pricing-api/src/test/java/com/vspiewak/pricing/platform/TracingIT.java) : a request
-carrying a caller's `traceparent` lands in the caller's trace.
+Proven by [`TracingIT`](./observability-starter/src/test/java/com/vspiewak/observability/sample/TracingIT.java),
+on the starter's sample service : the next service, stood in by a local HTTP server, is called with
+the request's trace id and the client span as parent.
 
 ### 🧾 Logs Cloud Logging reads, tied to their trace
 
@@ -153,7 +165,7 @@ adds the three fields Google reads — the last three here :
 `severity` is Google's name for the level (WARN becomes `WARNING`) ; the trace takes the
 `projects/<project>/traces/<id>` form Cloud Run's own request log uses, so both land under the same
 trace. Proven by [`CloudLoggingJsonMembersCustomizerTest`](./observability-starter/src/test/java/com/vspiewak/observability/logging/CloudLoggingJsonMembersCustomizerTest.java)
-and [`CloudLoggingIT`](./orders-api/src/test/java/com/vspiewak/orders/platform/CloudLoggingIT.java) —
+and [`CloudLoggingIT`](./observability-starter/src/test/java/com/vspiewak/observability/sample/CloudLoggingIT.java) —
 which sets nothing but `spring.cloud.gcp.project-id`.
 
 The span id puts each line on its span — open `OrderService#findByOrderId` in Cloud Trace, and its
@@ -176,18 +188,19 @@ And `@Observed` works without asking — `management.observations.annotations.en
 
 ## 🛤️ Run it locally
 
-You need **Java 25** — `.sdkmanrc` pins Temurin 25.0.4 — and Docker for the `*IT` tests.
+You need **Java 25** — `.sdkmanrc` pins Temurin 25.0.4 — and Docker, for the starter's `*IT` tests and
+for `compose.yaml`.
 
 ```bash
 sdk env install
-./mvnw verify                                      # unit + slice + *IT against a real MongoDB, no Google Cloud
+./mvnw verify                                      # unit + slice + the starter's *IT against a real MongoDB, no Google Cloud
 ./mvnw install -DskipTests                         # once, and after changing the starter : -pl takes it from ~/.m2
 
-docker compose up -d                               # Jaeger, its UI at http://localhost:16686
+docker compose up -d                               # MongoDB, and Jaeger with its UI at http://localhost:16686
 export MANAGEMENT_OPENTELEMETRY_TRACING_EXPORT_OTLP_ENDPOINT=http://localhost:4318/v1/traces
 
-./mvnw -pl pricing-api spring-boot:run             # pricing-api, at localhost:8081
-./mvnw -pl orders-api spring-boot:test-run         # orders-api, on a MongoDB container, at localhost:8080
+./mvnw -pl pricing-api spring-boot:run                                  # at localhost:8081
+./mvnw -pl orders-api spring-boot:run -Dspring-boot.run.profiles=local  # at localhost:8080, on compose's MongoDB
 
 curl -X POST localhost:8080/orders/v1/orders -H 'Content-Type: application/json' -d '{"orderId": "42", "amount": 7}'
 curl localhost:8080/orders/v1/orders/42            # then, in Jaeger : orders-api, one trace across both
@@ -248,7 +261,7 @@ Both services' Cloud Run request logs and their own lines, one trace — and in 
 
 What Terraform builds : the APIs, an Artifact Registry repository, one service account per service —
 both may write traces, only orders-api may read its secret — the Atlas project with a free M0 cluster
-and its user, the connection string in Secret Manager, and the two Cloud Run services, orders-api told
+and its user, the MongoDB password in Secret Manager, and the two Cloud Run services, orders-api told
 where pricing-api runs. Run `scripts/deploy.sh` again after any change — a bare `terraform apply` would
 put Cloud Run back on the placeholder images.
 

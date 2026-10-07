@@ -6,6 +6,10 @@ output "service_url" {
   value = google_cloud_run_v2_service.orders_api.uri
 }
 
+output "mongodb_host" {
+  value = local.mongodb_host
+}
+
 output "pricing_url" {
   value = google_cloud_run_v2_service.pricing_api.uri
 }
