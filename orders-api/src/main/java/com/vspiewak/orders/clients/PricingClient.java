@@ -8,7 +8,7 @@ import org.springframework.web.client.RestClient;
 @Component
 public class PricingClient {
 
-  public record Quote(Integer amount, BigDecimal vat, BigDecimal total) {}
+  public record Quote(int amount, BigDecimal vat, BigDecimal total) {}
 
   private final RestClient restClient;
 

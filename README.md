@@ -169,7 +169,8 @@ adds the three fields Google reads — the last three here :
 `projects/<project>/traces/<id>` form Cloud Run's own request log uses, so both land under the same
 trace. Proven by [`CloudLoggingJsonMembersCustomizerTest`](./observability-starter/src/test/java/com/vspiewak/observability/logging/CloudLoggingJsonMembersCustomizerTest.java)
 and [`CloudLoggingIT`](./observability-starter/src/test/java/com/vspiewak/observability/sample/CloudLoggingIT.java) —
-which sets nothing but `spring.cloud.gcp.project-id`.
+which turns it all on with `spring.cloud.gcp.project-id` alone — the OTLP export and Spring Cloud GCP's
+credentials switched off, as in every test, so nothing leaves the build.
 
 The span id puts each line on its span — open `OrderService#findByOrderId` in Cloud Trace, and its
 log line is right there :
@@ -220,7 +221,8 @@ after `gcloud auth application-default login` and `gcloud auth application-defau
 > ⚠️ This creates **real Google Cloud and MongoDB Atlas resources**, and may incur charges. Use a
 > project of its own, and tear it down when you are done.
 
-You need `gcloud`, `terraform` (1.9+), a Google Cloud project with billing, and a MongoDB Atlas
+You need **Java 25** (`deploy.sh` builds the images), `gcloud`, `terraform` (1.9+), `jq`, a Google Cloud
+project with billing, and a MongoDB Atlas
 organization with a service account (*Organization Project Creator*).
 
 ```bash
@@ -241,11 +243,11 @@ export MONGODB_ATLAS_CLIENT_SECRET=<service account secret>
 `demo.sh` picks the trace id itself, through `traceparent`, then lists every log line of that trace :
 
 ```text
-TIMESTAMP  SERVICE_NAME  SEVERITY  MESSAGE                                     REQUEST_URL
-09:21:19   orders-api    INFO                                                  https://orders-api-….run.app/orders/v1/orders/demo-634b4e2b
-09:21:20   pricing-api   INFO                                                  https://pricing-api-….run.app/prices/v1/quotes?amount=42
-09:21:20   pricing-api   INFO      quoted 42 at 50.40
-09:21:20   orders-api    INFO      found order demo-634b4e2b, priced at 50.40
+TIMESTAMP  SERVICE_NAME  SEVERITY  MESSAGE                                     REQUEST_URL                                                  SPAN_ID
+09:21:19   orders-api    INFO                                                  https://orders-api-….run.app/orders/v1/orders/demo-634b4e2b  c4651e114dd42ded
+09:21:20   pricing-api   INFO                                                  https://pricing-api-….run.app/prices/v1/quotes?amount=42     dbc1e299db63ae15
+09:21:20   pricing-api   INFO      quoted 42 at 50.40                                                                                      c38f7059f8de8bd1
+09:21:20   orders-api    INFO      found order demo-634b4e2b, priced at 50.40                                                              d794c0eba0f01996
 ```
 
 Both services' Cloud Run request logs and their own lines, one trace — and in Cloud Trace, nine spans :

@@ -55,6 +55,24 @@ class CloudLoggingJsonMembersCustomizerTest {
   }
 
   @Test
+  void shouldAddNothingWithoutAGoogleCloudProject() {
+    // given : JSON logs on a laptop, no project
+    var laptop = new CloudLoggingJsonMembersCustomizer(new MockEnvironment());
+    JsonWriter<ILoggingEvent> writer =
+        JsonWriter.of(
+            members -> {
+              members.add("message", ILoggingEvent::getFormattedMessage);
+              laptop.customize(members);
+            });
+
+    // when
+    var json = writer.writeToString(event(Level.INFO, Map.of("traceId", "4bf92f35")));
+
+    // then
+    assertThat(json).doesNotContain("severity", "logging.googleapis.com/", "projects/null");
+  }
+
+  @Test
   void shouldLeaveTheTraceOutOfLinesThatHaveNone() {
     // when : a startup line, logged outside of any request
     var json = format(event(Level.INFO, Map.of()));

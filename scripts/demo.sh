@@ -22,9 +22,11 @@ echo
 echo
 echo "🔍 trace $trace_id — waiting for its logs to land in Cloud Logging..."
 
+# four entries : each service's Cloud Run request log, and each service's own line — ingested apart
 filter="trace=\"projects/$project/traces/$trace_id\""
 for _ in $(seq 1 20); do
-  if [ -n "$(gcloud logging read "$filter" --project "$project" --freshness 10m --limit 1 --format 'value(insertId)')" ]; then
+  entries=$(gcloud logging read "$filter" --project "$project" --freshness 10m --limit 10 --format 'value(insertId)' | wc -l)
+  if [ "$entries" -ge 4 ]; then
     break
   fi
   sleep 3

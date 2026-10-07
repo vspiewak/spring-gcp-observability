@@ -68,7 +68,11 @@ class TracingIT {
 
   @Autowired private SampleRepository repository;
 
-  @Autowired private InMemorySpanExporter spans;
+  /**
+   * Not a bean : Boot hands every {@code SpanExporter} bean to its own batch processor, which would
+   * deliver each span a second time, seconds later — possibly into the next test.
+   */
+  private static final InMemorySpanExporter spans = InMemorySpanExporter.create();
 
   @BeforeEach
   void setUp() {
@@ -175,13 +179,8 @@ class TracingIT {
   static class CapturedSpans {
 
     @Bean
-    InMemorySpanExporter inMemorySpanExporter() {
-      return InMemorySpanExporter.create();
-    }
-
-    @Bean
-    SpanProcessor inMemorySpanProcessor(InMemorySpanExporter exporter) {
-      return SimpleSpanProcessor.create(exporter);
+    SpanProcessor inMemorySpanProcessor() {
+      return SimpleSpanProcessor.create(spans);
     }
   }
 }

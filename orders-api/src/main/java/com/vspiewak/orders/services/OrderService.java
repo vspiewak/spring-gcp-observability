@@ -25,7 +25,7 @@ public class OrderService {
     this.pricing = pricing;
   }
 
-  public Order create(String orderId, Integer amount) {
+  public Order create(String orderId, int amount) {
     var order = repository.save(new Order(orderId, amount));
     log.info("created order {}", orderId);
     return order;

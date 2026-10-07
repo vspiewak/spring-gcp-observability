@@ -8,6 +8,8 @@ import org.springframework.boot.SpringBootConfiguration;
 import org.springframework.boot.WebApplicationType;
 import org.springframework.boot.builder.SpringApplicationBuilder;
 import org.springframework.core.env.Environment;
+import org.springframework.core.env.MutablePropertySources;
+import org.springframework.core.env.StandardEnvironment;
 
 /** Boots a real application : the defaults have to sit below a real {@code application.yaml}. */
 class ObservabilityDefaultsEnvironmentPostProcessorTest {
@@ -18,12 +20,21 @@ class ObservabilityDefaultsEnvironmentPostProcessorTest {
   private static Environment boot(String... args) {
     try (var context =
         new SpringApplicationBuilder(NoBeans.class)
+            .environment(withoutTheBuildsEnvironment())
             .web(WebApplicationType.NONE)
             .bannerMode(Banner.Mode.OFF)
             .logStartupInfo(false)
             .run(args)) {
       return context.getEnvironment();
     }
+  }
+
+  /** No system environment, no system properties : an exported variable cannot leak in. */
+  private static StandardEnvironment withoutTheBuildsEnvironment() {
+    return new StandardEnvironment() {
+      @Override
+      protected void customizePropertySources(MutablePropertySources propertySources) {}
+    };
   }
 
   @Test

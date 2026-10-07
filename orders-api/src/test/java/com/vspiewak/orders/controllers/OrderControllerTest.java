@@ -77,4 +77,20 @@ class OrderControllerTest {
     // then
     assertThat(response).hasStatus(HttpStatus.NOT_FOUND);
   }
+
+  @Test
+  void shouldRejectAnOrderWithoutAnAmount() {
+    // when
+    var response =
+        mvc.post()
+            .uri("/orders/v1/orders")
+            .contentType(MediaType.APPLICATION_JSON)
+            .content(
+                """
+                {"orderId": "42"}
+                """);
+
+    // then : refused at the door, rather than stored and failing every read
+    assertThat(response).hasStatus(HttpStatus.BAD_REQUEST);
+  }
 }

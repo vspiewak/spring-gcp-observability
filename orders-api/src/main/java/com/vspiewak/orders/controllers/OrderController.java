@@ -23,7 +23,7 @@ public class OrderController {
     this.service = service;
   }
 
-  public record NewOrder(String orderId, Integer amount) {}
+  public record NewOrder(String orderId, int amount) {}
 
   @PostMapping
   @ResponseStatus(HttpStatus.CREATED)
