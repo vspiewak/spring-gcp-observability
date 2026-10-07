@@ -82,6 +82,8 @@ class CloudLoggingIT {
 
     // then
     var line = output.getOut().lines().filter(l -> l.contains("no sample 999")).findFirst();
-    assertThat(line).hasValueSatisfying(l -> assertThat(l).contains("\"severity\":\"WARNING\""));
+    assertThat(line)
+        .hasValueSatisfying(
+            l -> assertThat(JsonPath.<String>read(l, "$.severity")).isEqualTo("WARNING"));
   }
 }

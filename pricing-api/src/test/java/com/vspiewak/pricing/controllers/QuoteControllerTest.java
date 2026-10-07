@@ -25,6 +25,9 @@ class QuoteControllerTest {
     assertThat(response)
         .hasStatusOk()
         .bodyJson()
-        .isLenientlyEqualTo("{\"amount\": 7, \"vat\": 1.40, \"total\": 8.40}");
+        .isLenientlyEqualTo(
+            """
+            {"amount": 7, "vat": 1.40, "total": 8.40}
+            """);
   }
 }

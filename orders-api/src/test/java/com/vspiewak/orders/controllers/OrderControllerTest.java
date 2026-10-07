@@ -34,7 +34,10 @@ class OrderControllerTest {
         mvc.post()
             .uri("/orders/v1/orders")
             .contentType(MediaType.APPLICATION_JSON)
-            .content("{\"orderId\": \"42\", \"amount\": 7}");
+            .content(
+                """
+                {"orderId": "42", "amount": 7}
+                """);
 
     // then
     assertThat(response)
@@ -57,7 +60,10 @@ class OrderControllerTest {
     assertThat(response)
         .hasStatusOk()
         .bodyJson()
-        .isLenientlyEqualTo("{\"orderId\": \"42\", \"amount\": 7, \"total\": 8.40}");
+        .isLenientlyEqualTo(
+            """
+            {"orderId": "42", "amount": 7, "total": 8.40}
+            """);
   }
 
   @Test
