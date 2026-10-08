@@ -366,4 +366,5 @@ Measured while building this, on Spring Boot 4.1, Cloud Run and the Telemetry AP
 |---|---|---|
 | Platform | Java 21 · Spring Boot 3.5 | Java 25 · Spring Boot 4.1 |
 | Tracing API | Micrometer Observation over OpenTelemetry, `@Observed` | the same |
+| Google Cloud project | a per-environment mandate, chosen by `SPRING_PROFILES_ACTIVE` | `SPRING_CLOUD_GCP_PROJECT_ID`, set by Terraform |
 | Shape | a capability of the fleet's shared libraries | one starter, two services — yours to fork |
