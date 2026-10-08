@@ -75,21 +75,26 @@ observability — `spring.cloud.gcp.project-id`, Spring Cloud GCP's own, as `SPR
 — and, for orders-api, `SPRING_PROFILES_ACTIVE=gcp` and what `application-gcp.yaml` reads : `MONGODB_HOST`,
 `MONGODB_PASSWORD` (from Secret Manager) and `PRICING_URL`.
 
-Spans are Micrometer's `Observation`, nothing Google-specific. `@Observed` on a class traces every
-public method under its default name — orders-api's `OrderService#findByOrderId`. On a method, it
-traces that one, under the name it is given. And a span of your own wraps any block of code, with the
-injected `ObservationRegistry`. [`PricingService`](./pricing-api/src/main/java/com/vspiewak/pricing/services/PricingService.java)
-shows both :
+Spans are Micrometer's `Observation`, nothing Google-specific. Most of a request's trace is free : the
+HTTP spans come from Boot, the MongoDB ones from the starter. The services write the other three, each
+a different way — [`OrderService`](./orders-api/src/main/java/com/vspiewak/orders/services/OrderService.java)
+and [`PricingService`](./pricing-api/src/main/java/com/vspiewak/pricing/services/PricingService.java) :
 
 ```java
+// 1. every public method, named Class#method
+@Service
+@Observed
+public class OrderService { ... }
+
+// 2. one method, under the name you choose
 @Observed(contextualName = "pricing.quote")
 public Quote quote(int amount) {
-  var net = BigDecimal.valueOf(amount);
-  var vat =
-      Observation.createNotStarted("pricing.vat", observationRegistry)
-          .lowCardinalityKeyValue("vat.rate", VAT_RATE.toPlainString())
-          .observe(() -> net.multiply(VAT_RATE).setScale(2, RoundingMode.HALF_UP));
-  // ...
+  ...
+  // 3. one block
+  var vat = Observation.createNotStarted("pricing.vat", observationRegistry)
+      .lowCardinalityKeyValue("vat.rate", VAT_RATE.toPlainString())
+      .observe(() -> net.multiply(VAT_RATE).setScale(2, RoundingMode.HALF_UP));
+  ...
 }
 ```
 
