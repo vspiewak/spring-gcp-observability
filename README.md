@@ -16,7 +16,7 @@ Three layers, and each knows only what it must :
 | Layer | Knows |
 |---|---|
 | 🧾 [`orders-api`](./orders-api) — a service | its name, its MongoDB, where pricing-api is, `@Observed` — **no Google Cloud code** |
-| 🏷️ [`pricing-api`](./pricing-api) — another one | its name, its port, `@Observed` — **no Google Cloud code** |
+| 🏷️ [`pricing-api`](./pricing-api) — another one | its name, its port, a named `@Observed` method, a span of its own — **no Google Cloud code** |
 | 🔭 [`observability-starter`](./observability-starter) — the platform, as one dependency | how traces and logs reach Google : endpoint, token, project attribute, log field names, the sampler |
 | ☁️ [`terraform`](./terraform) — the infrastructure | which project, orders-api's Spring profile, the database host and password, who may write traces, where pricing-api runs |
 
@@ -32,7 +32,7 @@ curl ─► Cloud Run ─► orders-api ─────────────�
 One request, one trace : Cloud Run's front-end span, orders-api's, MongoDB's, the call out, Cloud Run's
 again, pricing-api's — and every log line of both services filed under that same trace.
 
-![One request in Cloud Trace : nine spans across orders-api and pricing-api — Cloud Run's front end, the HTTP server span, OrderService#findByOrderId, the MongoDB find, the call to pricing-api, Cloud Run again, pricing-api's server span and PricingService#quote](./docs/images/trace.png)
+![One request in Cloud Trace : ten spans across orders-api and pricing-api — Cloud Run's front end, the HTTP server span, OrderService#findByOrderId, the MongoDB find, the call to pricing-api, Cloud Run again, pricing-api's server span, pricing.quote and pricing.vat](./docs/images/trace.png)
 
 ## 🧾 What a service contains
 
@@ -75,9 +75,30 @@ observability — `spring.cloud.gcp.project-id`, Spring Cloud GCP's own, as `SPR
 — and, for orders-api, `SPRING_PROFILES_ACTIVE=gcp` and what `application-gcp.yaml` reads : `MONGODB_HOST`,
 `MONGODB_PASSWORD` (from Secret Manager) and `PRICING_URL`.
 
+Spans are Micrometer's `Observation`, nothing Google-specific. `@Observed` on a class traces every
+public method under its default name — orders-api's `OrderService#findByOrderId`. On a method, it
+traces that one, under the name it is given. And a span of your own wraps any block of code, with the
+injected `ObservationRegistry`. [`PricingService`](./pricing-api/src/main/java/com/vspiewak/pricing/services/PricingService.java)
+shows both :
+
+```java
+@Observed(contextualName = "pricing.quote")
+public Quote quote(int amount) {
+  var net = BigDecimal.valueOf(amount);
+  var vat =
+      Observation.createNotStarted("pricing.vat", observationRegistry)
+          .lowCardinalityKeyValue("vat.rate", VAT_RATE.toPlainString())
+          .observe(() -> net.multiply(VAT_RATE).setScale(2, RoundingMode.HALF_UP));
+  // ...
+}
+```
+
+`pricing.vat` lands under `pricing.quote`, tagged `vat.rate=0.20`, exported like every other span.
+
 Their tests are their own, on `spring-boot-starter-webmvc-test`, nothing about observability : a
-controller slice test each, and for orders-api a test of its two configurations. The proofs live with
-the starter.
+controller slice test each, pricing-api's VAT rule in a plain unit test — no registry there, and
+Micrometer runs the block without recording it — and for orders-api a test of its two configurations.
+The proofs live with the starter.
 
 ## 🔭 What the starter does
 
@@ -175,12 +196,12 @@ credentials switched off, as in every test, so nothing leaves the build.
 The span id puts each line on its span — open `OrderService#findByOrderId` in Cloud Trace, and its
 log line is right there :
 
-![Cloud Trace, span OrderService#findByOrderId selected, its Logs & Events tab showing the log line "found order demo-e4250e78, priced at 50.40"](./docs/images/trace-span-logs.png)
+![Cloud Trace, span OrderService#findByOrderId selected, its Logs & Events tab showing the log line "found order demo-aa49c786, priced at 50.40"](./docs/images/trace-span-logs.png)
 
 And the trace id files both services' lines together — the same request in the Logs Explorer, queried
 by `trace=` : both Cloud Run request logs, then pricing-api's and orders-api's own lines.
 
-![Logs Explorer queried by trace : four entries — orders-api's and pricing-api's Cloud Run request logs, "quoted 42 at 50.40", "found order demo-e4250e78, priced at 50.40"](./docs/images/logs.png)
+![Logs Explorer queried by trace : four entries — orders-api's and pricing-api's Cloud Run request logs, "quoted 42 at 50.40", "found order demo-aa49c786, priced at 50.40"](./docs/images/logs.png)
 
 ### 🍃 MongoDB, traced by its own driver
 
@@ -250,7 +271,7 @@ TIMESTAMP  SERVICE_NAME  SEVERITY  MESSAGE                                     R
 09:21:20   orders-api    INFO      found order demo-634b4e2b, priced at 50.40                                                              d794c0eba0f01996
 ```
 
-Both services' Cloud Run request logs and their own lines, one trace — and in Cloud Trace, nine spans :
+Both services' Cloud Run request logs and their own lines, one trace — and in Cloud Trace, ten spans :
 
 ```text
 /orders/v1/orders/demo-634b4e2b              ← Cloud Run's front end
@@ -261,7 +282,8 @@ Both services' Cloud Run request logs and their own lines, one trace — and in 
       └─ http get                            ← the call to pricing-api
          └─ /prices/v1/quotes                ← Cloud Run's front end, again
             └─ http get /prices/v1/quotes    ← pricing-api
-               └─ PricingService#quote       ← @Observed
+               └─ pricing.quote              ← @Observed on the method, named
+                  └─ pricing.vat             ← a span of its own
 ```
 
 What Terraform builds : the APIs, an Artifact Registry repository, one service account per service —
@@ -306,11 +328,12 @@ Measured while building this, on Spring Boot 4.1, Cloud Run and the Telemetry AP
   Run mostly honours it — not always : a GET sent right after the POST that seeds it came back without
   Cloud Run's span, the same GET sent 15 seconds later with it. Cloud Run's 0.1 request per second
   per instance cap looks like the reason. The service's own spans are there either way.
-* **The trace shows the cold start.** After forty minutes without traffic, pricing-api had scaled to
-  zero : the call to it took 13.3 seconds, of which pricing-api itself spent 200 ms — the rest is Cloud
-  Run's front end waiting for an instance to start.
+* **The trace shows the cold start.** About fifteen minutes after their last request, both services had
+  scaled to zero (Cloud Monitoring's instance count). The next GET found pricing-api cold — `demo.sh`'s
+  POST had just woken orders-api : the call to it took 9.8 seconds, of which pricing-api itself spent
+  254 ms — the rest is Cloud Run's front end waiting for an instance to start.
 
-  ![A cold-start trace : the call to pricing-api lasts 13.3 s, pricing-api's own server span 200 ms](./docs/images/trace-cold-start.png)
+  ![A cold-start trace : the call to pricing-api lasts 9.8 s, pricing-api's own server span 254 ms](./docs/images/trace-cold-start.png)
 * **Boot's OpenTelemetry starter exports metrics too.** It ships an OTLP metrics registry, on by
   default, aimed at `http://localhost:4318/v1/metrics` : left on, every service logs `Failed to publish
   metrics to OTLP receiver` once a minute. The defaults switch it off — this demo is about traces and
