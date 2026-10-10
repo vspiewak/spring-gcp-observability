@@ -26,9 +26,7 @@ import org.springframework.test.web.servlet.client.RestTestClient;
     webEnvironment = WebEnvironment.RANDOM_PORT,
     properties = {
       "spring.cloud.gcp.project-id=demo-project",
-      "management.tracing.export.otlp.enabled=false",
-      // no Google credentials in the build : Spring Cloud GCP would go looking for some
-      "spring.cloud.gcp.core.enabled=false"
+      "management.tracing.export.otlp.enabled=false"
     })
 @AutoConfigureRestTestClient
 @Import(Containers.class)

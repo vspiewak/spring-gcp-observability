@@ -1,0 +1,56 @@
+# Google's OpenTelemetry Collector, beside each service on Cloud Run : spans in over OTLP from the
+# service next to it, out to Cloud Trace through the Telemetry API. Google's standard Cloud Run
+# configuration, trimmed to traces — logs stay JSON lines on stdout, and this demo has no metrics :
+# https://docs.cloud.google.com/stackdriver/docs/instrumentation/opentelemetry-collector-cloud-run
+receivers:
+  otlp:
+    protocols:
+      # where the service exports : observability-gcp.yaml
+      http:
+        endpoint: localhost:4318
+
+processors:
+  # where the spans come from : Cloud Run, the service, its region
+  resourcedetection:
+    detectors: [gcp]
+    timeout: 10s
+  # the Telemetry API files every span under this project
+  resource/gcp_project_id:
+    attributes:
+      - action: insert
+        key: gcp.project_id
+        value: ${GOOGLE_CLOUD_PROJECT}
+  memory_limiter:
+    check_interval: 1s
+    limit_percentage: 65
+    spike_limit_percentage: 20
+  batch:
+    send_batch_max_size: 200
+    send_batch_size: 200
+    timeout: 5s
+
+exporters:
+  otlp_grpc:
+    endpoint: telemetry.googleapis.com:443
+    balancer_name: pick_first
+    auth:
+      authenticator: googleclientauth
+
+extensions:
+  # what Cloud Run's startup probe asks : the service starts once the collector answers
+  health_check:
+    endpoint: 0.0.0.0:13133
+  # a Google token for every export, from the service account the instance runs as
+  googleclientauth:
+
+service:
+  extensions: [health_check, googleclientauth]
+  pipelines:
+    traces:
+      receivers: [otlp]
+      processors: [resourcedetection, resource/gcp_project_id, memory_limiter, batch]
+      exporters: [otlp_grpc]
+  telemetry:
+    # the collector's own metrics would need a metrics pipeline, and Cloud Monitoring : off
+    metrics:
+      level: none

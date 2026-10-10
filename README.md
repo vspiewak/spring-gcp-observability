@@ -23,6 +23,7 @@ two services :
 
 * 🔑 **one property** — `spring.cloud.gcp.project-id` turns Google Cloud on ; without it, a laptop exports nothing
 * 🧼 **no Google Cloud code in the services** — Micrometer's `@Observed` and `Observation`, nothing else
+* 🛰️ **one sidecar on Cloud Run** — Google's OpenTelemetry Collector beside each service, from Terraform : the only part that holds Google credentials
 
 ## 🚀 Quick start
 
@@ -87,7 +88,7 @@ all the way to real infrastructure — Terraform, Cloud Run, MongoDB Atlas — a
 
 <picture>
   <source media="(prefers-color-scheme: dark)" srcset="./docs/images/architecture-dark.png">
-  <img alt="One request, two services, one trace : a request reaches orders-api, which calls pricing-api over HTTP with a traceparent ; both carry @Observed and the observability-starter, send their spans over OTLP with a Google token to Cloud Trace, and write JSON lines on stdout that Cloud Logging files under the same trace id and span" src="./docs/images/architecture.png">
+  <img alt="One request, two services, one trace : a request reaches orders-api, which calls pricing-api over HTTP with a traceparent ; both carry @Observed and the observability-starter, send their spans over OTLP to Google's OpenTelemetry Collector beside them, which signs them on to Cloud Trace, and write JSON lines on stdout that Cloud Logging files under the same trace id and span" src="./docs/images/architecture.png">
 </picture>
 
 | Module | Role |
@@ -95,14 +96,14 @@ all the way to real infrastructure — Terraform, Cloud Run, MongoDB Atlas — a
 | 🔭 [`observability‑starter`](./observability-starter) | The platform, as one dependency — the only module that knows Google Cloud |
 | 🧾 [`orders‑api`](./orders-api) | A service : MongoDB, a call to pricing-api, `@Observed` on its service — **no Google Cloud code** |
 | 🏷️ [`pricing‑api`](./pricing-api) | Another one : a named `@Observed` method and a span of its own — **no Google Cloud code** |
-| ☁️ [`terraform`](./terraform) | Cloud Run, Artifact Registry, Secret Manager, an Atlas M0 cluster — and who may write traces |
+| ☁️ [`terraform`](./terraform) | Cloud Run with the collector beside each service, Artifact Registry, Secret Manager, an Atlas M0 cluster — and who may write traces |
 
 ## ✨ What a service gets
 
 **Traces**
 
 * 🎲 **every request traced** — sampled on the trace id, not on Cloud Run's *not sampled* flag · [`TracingIT`](./observability-starter/src/test/java/com/vspiewak/observability/sample/TracingIT.java)
-* 📮 **straight to Cloud Trace** — plain OTLP to the Telemetry API, a fresh Google token on every export · [`CloudTraceAutoConfigurationTest`](./observability-starter/src/test/java/com/vspiewak/observability/tracing/CloudTraceAutoConfigurationTest.java)
+* 📮 **to Cloud Trace, through a collector** — plain OTLP to `localhost`, where Google's OpenTelemetry Collector files the spans under the project and signs them to the Telemetry API : no Google credentials in the service · [`collector.yaml`](./terraform/collector.yaml)
 * 🔗 **one trace across services** — Boot's `RestClient` carries the `traceparent`, nothing to write · [`TracingIT`](./observability-starter/src/test/java/com/vspiewak/observability/sample/TracingIT.java)
 * 🍃 **MongoDB spans** — the driver traces itself once handed the registry, query payloads left out · [`MongoTracingAutoConfigurationTest`](./observability-starter/src/test/java/com/vspiewak/observability/mongo/MongoTracingAutoConfigurationTest.java)
 

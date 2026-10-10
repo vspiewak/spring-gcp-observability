@@ -17,20 +17,10 @@
          <groupId>org.springframework.boot</groupId>
          <artifactId>spring-boot-starter-opentelemetry</artifactId>
       </dependency>
-      <!-- brought at runtime by the starter above ; declared because the token bean builds against it -->
-      <dependency>
-         <groupId>io.opentelemetry</groupId>
-         <artifactId>opentelemetry-exporter-otlp</artifactId>
-      </dependency>
       <!-- @Observed -->
       <dependency>
          <groupId>org.springframework.boot</groupId>
          <artifactId>spring-boot-starter-aspectj</artifactId>
-      </dependency>
-      <!-- Google Cloud credentials and project, the Spring way -->
-      <dependency>
-         <groupId>com.google.cloud</groupId>
-         <artifactId>spring-cloud-gcp-starter</artifactId>
       </dependency>
 
       <!-- MongoDB driver tracing, for the services that have a MongoDB : they bring the driver -->

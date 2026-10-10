@@ -3,7 +3,6 @@ package com.vspiewak.observability.sample;
 import static org.assertj.core.api.Assertions.assertThat;
 import static org.awaitility.Awaitility.await;
 
-import io.opentelemetry.api.common.AttributeKey;
 import io.opentelemetry.api.trace.SpanKind;
 import io.opentelemetry.sdk.testing.exporter.InMemorySpanExporter;
 import io.opentelemetry.sdk.trace.SpanProcessor;
@@ -29,18 +28,16 @@ import org.springframework.test.web.servlet.client.RestTestClient;
 
 /**
  * The tracing a service inherits from the starter, end to end : one request is one trace from the
- * HTTP server span down to the MongoDB driver and out to the next service, a trace Cloud Run
- * started is continued even when Cloud Run chose not to sample it, and every span names its Google
- * Cloud project. Spans are captured in memory, exactly as the OTLP exporter would hand them to
- * Google — which is switched off here, so nothing leaves the build.
+ * HTTP server span down to the MongoDB driver and out to the next service, and a trace Cloud Run
+ * started is continued even when Cloud Run chose not to sample it. Spans are captured in memory,
+ * exactly as the OTLP exporter would hand them to the collector — which is switched off here, so
+ * nothing leaves the build.
  */
 @SpringBootTest(
     webEnvironment = WebEnvironment.RANDOM_PORT,
     properties = {
       "spring.cloud.gcp.project-id=demo-project",
-      "management.tracing.export.otlp.enabled=false",
-      // no Google credentials in the build : Spring Cloud GCP would go looking for some
-      "spring.cloud.gcp.core.enabled=false"
+      "management.tracing.export.otlp.enabled=false"
     })
 @AutoConfigureRestTestClient
 @AutoConfigureTracing
@@ -130,21 +127,6 @@ class TracingIT {
     var server = awaitServerSpan();
     assertThat(server.getTraceId()).isEqualTo(CLOUD_RUN_TRACE_ID);
     assertThat(server.getParentSpanId()).isEqualTo(CLOUD_RUN_SPAN_ID);
-  }
-
-  @Test
-  void shouldNameTheGoogleCloudProjectOnEverySpan() {
-    // when
-    client.get().uri("/samples/42").exchange().expectStatus().isOk();
-
-    // then
-    awaitServerSpan();
-    assertThat(spans.getFinishedSpanItems())
-        .allSatisfy(
-            span ->
-                assertThat(
-                        span.getResource().getAttribute(AttributeKey.stringKey("gcp.project_id")))
-                    .isEqualTo("demo-project"));
   }
 
   private SpanData awaitServerSpan() {

@@ -1,11 +1,13 @@
 # 📓 Cloud Run field notes
 
-Measured while building [spring-gcp-observability](../README.md), on Spring Boot 4.1, Cloud Run and the Telemetry API, October 2026 :
+Measured while building [spring-gcp-observability](../README.md), on Spring Boot 4.1, Cloud Run and the Telemetry API, October 2026 —
+when each service still exported its spans straight to the Telemetry API, before the collector moved in beside it :
 
 * **Throttled CPU loses spans.** Spans leave in batches, after the response. With Cloud Run's default
   request-based CPU, the export call failed (`Failed to export spans. The request could not be
   executed.`) and the batch was gone ; with `cpu_idle = false`, the same idle request's spans arrived
-  within 20 seconds.
+  within 20 seconds. The collector batches them once more, after the response too : `cpu_idle = false`
+  stays.
 * **Every trace starts with a "Missing span ID".** For a request Cloud Run chose not to sample, it
   still hands the service a `traceparent` naming its own span as the parent — but never records that
   span : the service's spans hang under a placeholder. The alternatives are worse : follow Cloud Run's
@@ -37,9 +39,9 @@ Measured while building [spring-gcp-observability](../README.md), on Spring Boot
   ingested : a trace read right away can show pricing-api's spans and not yet orders-api's.
 * **Trace flags are `03`, not `01`.** OpenTelemetry Java sets W3C Trace Context Level 2's *random trace
   id* bit next to *sampled* ; Cloud Run's front end takes it as sampled.
-* **Spring Cloud GCP for credentials, not for traces.** Its core starter gives the token the standard
-  Spring way, shared with Pub/Sub, Secret Manager and the rest — about 15 jars a service using any of
-  them carries anyway. Its trace starter is another story : built on Brave and Zipkin over gRPC, not on
-  the OpenTelemetry bridge Boot exports from, it follows Cloud Run's sampling flag.
+* **Not Spring Cloud GCP's trace starter.** Built on Brave and Zipkin over gRPC, not on the
+  OpenTelemetry bridge Boot exports from, it follows Cloud Run's sampling flag. With the collector
+  holding the credentials, the services need nothing else from Spring Cloud GCP either — only the name
+  of its property, `spring.cloud.gcp.project-id`.
 * **The free M0 tier** has no Workload Identity Federation (M10 and up), no peering, no private
   endpoint : the service authenticates with a password.

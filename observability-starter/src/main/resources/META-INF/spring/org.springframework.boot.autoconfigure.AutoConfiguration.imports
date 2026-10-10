@@ -1,2 +1,1 @@
-com.vspiewak.observability.tracing.CloudTraceAutoConfiguration
 com.vspiewak.observability.mongo.MongoTracingAutoConfiguration

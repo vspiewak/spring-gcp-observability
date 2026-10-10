@@ -1,14 +1,13 @@
----
-# on Google Cloud : traces to Cloud Trace, logs as JSON lines for Cloud Logging
+# on Google Cloud : traces to the OpenTelemetry Collector beside the service, logs as JSON lines for
+# Cloud Logging
 management:
   opentelemetry:
     tracing:
       export:
         otlp:
-          endpoint: "https://telemetry.googleapis.com/v1/traces"
-    resource-attributes:
-      # the Telemetry API files every span under this project
-      gcp.project_id: "${spring.cloud.gcp.project-id}"
+          # the collector's OTLP receiver, in the same Cloud Run instance : it files the spans under
+          # the project and signs them to Cloud Trace — terraform/collector.yaml
+          endpoint: "http://localhost:4318/v1/traces"
 logging:
   structured:
     format:

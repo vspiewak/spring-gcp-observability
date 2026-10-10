@@ -16,7 +16,3 @@ management:
       export:
         # the OpenTelemetry starter ships an OTLP metrics registry too : this demo is about traces and logs
         enabled: false
-logging:
-  level:
-    # Spring Cloud GCP logs its credentials and 13 OAuth scopes at every start : not worth a line each
-    com.google.cloud.spring.core: "WARN"
