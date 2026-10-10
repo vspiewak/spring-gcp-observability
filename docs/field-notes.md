@@ -1,7 +1,8 @@
 # 📓 Cloud Run field notes
 
 Measured while building [spring-gcp-observability](../README.md), on Spring Boot 4.1, Cloud Run and the Telemetry API, October 2026 —
-when each service still exported its spans straight to the Telemetry API, before the collector moved in beside it :
+these first ones when each service still exported its spans straight to the Telemetry API ; those with the collector
+beside it close the page :
 
 * **Throttled CPU loses spans.** Spans leave in batches, after the response. With Cloud Run's default
   request-based CPU, the export call failed (`Failed to export spans. The request could not be
@@ -45,3 +46,23 @@ when each service still exported its spans straight to the Telemetry API, before
   of its property, `spring.cloud.gcp.project-id`.
 * **The free M0 tier** has no Workload Identity Federation (M10 and up), no peering, no private
   endpoint : the service authenticates with a password.
+
+## With the collector beside each service
+
+Measured on its first deployments, Google's OpenTelemetry Collector 0.162.0 :
+
+* **The collector costs a few seconds of cold start.** The service waits for its startup probe, which
+  passed on the 3rd to 5th attempt, a second apart, in all six starts. Google's Cloud Run guide probes
+  every 30 seconds : the collector was never ready at the first attempt, so that would be 30 seconds
+  on every cold start — `run.tf` probes every second.
+* **Google's standard configuration lags its own image.** On 0.162.0, it logs `"resourcedetection"
+  alias is deprecated; use "resource_detection" instead` at every start ; `otelcol-google validate`
+  passes either way, the warning only shows once the collector runs. `collector.yaml` uses the new name.
+* **The collector writes to the service's logs.** About 17 lines per start, severity `DEFAULT`, under
+  the same Cloud Run service. They carry no trace, so a trace's logs leave them out ;
+  `labels.container_name="collector"` finds them.
+* **The spans say where they come from.** The collector's `gcp` detector adds `faas.name` (the
+  service), `faas.version` (the revision), `cloud.region` and `cloud.platform` to every span — nothing
+  in the service sets them.
+* **Spans still land within the minute.** With the collector's five-second batch on top of the
+  service's, a request's ten spans were all in Cloud Trace less than 40 seconds after it.

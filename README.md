@@ -140,7 +140,7 @@ public Quote quote(int amount) {
 
 Building this on Cloud Run surfaced what the docs leave out — throttled CPU losing span batches, the
 *Missing span ID* that starts every trace, a cold start you can read in the trace, trace storage that
-provisions itself in `us`. Collected in [`docs/field-notes.md`](./docs/field-notes.md).
+provisions itself in `us`, the seconds a collector adds to a cold start. Collected in [`docs/field-notes.md`](./docs/field-notes.md).
 
 ## ⚖️ At work vs here
 
