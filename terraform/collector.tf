@@ -1,6 +1,6 @@
 locals {
   # Google's build of the OpenTelemetry Collector, the sidecar beside each service in run.tf
-  collector_image = "us-docker.pkg.dev/cloud-ops-agents-artifacts/google-cloud-opentelemetry-collector/otelcol-google:0.160.0"
+  collector_image = "us-docker.pkg.dev/cloud-ops-agents-artifacts/google-cloud-opentelemetry-collector/otelcol-google:0.162.0"
 }
 
 # collector.yaml reaches the sidecar as a file, and Cloud Run mounts files from Secret Manager —
