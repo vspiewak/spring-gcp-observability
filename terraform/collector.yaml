@@ -11,7 +11,7 @@ receivers:
 
 processors:
   # where the spans come from : Cloud Run, the service, its region
-  resourcedetection:
+  resource_detection:
     detectors: [gcp]
     timeout: 10s
   # the Telemetry API files every span under this project
@@ -48,7 +48,7 @@ service:
   pipelines:
     traces:
       receivers: [otlp]
-      processors: [resourcedetection, resource/gcp_project_id, memory_limiter, batch]
+      processors: [resource_detection, resource/gcp_project_id, memory_limiter, batch]
       exporters: [otlp_grpc]
   telemetry:
     # the collector's own metrics would need a metrics pipeline, and Cloud Monitoring : off
