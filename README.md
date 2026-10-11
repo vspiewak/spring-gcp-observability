@@ -91,10 +91,10 @@ all the way to real infrastructure — Terraform, Cloud Run, MongoDB Atlas — a
 
 | Module | Role |
 |---|---|
-| 🔭 [`observability‑starter`](./observability-starter) | The platform, as one dependency — the only module that knows Google Cloud |
-| 🧾 [`orders‑api`](./orders-api) | A service : MongoDB, a call to pricing-api, `@Observed` on its service — **no Google Cloud code** |
-| 🏷️ [`pricing‑api`](./pricing-api) | Another one : a named `@Observed` method and a span of its own — **no Google Cloud code** |
-| ☁️ [`terraform`](./terraform) | Cloud Run, Artifact Registry, Secret Manager, an Atlas M0 cluster — and who may write traces |
+| 🔭 [`observability‑starter`](./observability-starter) | The platform, as one dependency — the only module that knows Google Cloud |
+| 🧾 [`orders‑api`](./orders-api) | A service : MongoDB, a call to pricing-api, `@Observed` on its service — **no Google Cloud code** |
+| 🏷️ [`pricing‑api`](./pricing-api) | Another one : a named `@Observed` method and a span of its own — **no Google Cloud code** |
+| ☁️ [`terraform`](./terraform) | Cloud Run, Artifact Registry, Secret Manager, an Atlas M0 cluster — and who may write traces |
 
 ## ✨ What a service gets
 
