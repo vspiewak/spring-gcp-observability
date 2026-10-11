@@ -9,8 +9,7 @@ two services :
 
 ![One request in Cloud Trace : ten spans across orders-api and pricing-api — Cloud Run's front end, the HTTP server span, OrderService#findByOrderId, the MongoDB find, the call to pricing-api, Cloud Run again, pricing-api's server span, pricing.quote and pricing.vat](./docs/images/trace.png)
 
-📝 The story so far : [migrating 1,273 repos in under an hour](https://vspiewak.com/migrating-1200-repos-from-bitbucket-to-github-in-under-an-hour) ·
-[27,000+ PRs with gh-auto-updater](https://vspiewak.com/gh-auto-updater-mass-pull-requests-across-a-repo-fleet) — more on [vspiewak.com](https://vspiewak.com)
+📝 The full story on the blog : [**Observability as a dependency : Spring Boot, OpenTelemetry and Cloud Run**](https://vspiewak.com/observability-as-a-dependency-for-a-spring-boot-fleet) — how the same design reached a fleet of ~80 services — more on [vspiewak.com](https://vspiewak.com)
 
 ## 💡 All it takes
 
